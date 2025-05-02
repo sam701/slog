@@ -15,20 +15,19 @@ pub fn initFromDefaultEnvvar(allocator: Allocator) !This {
 }
 
 const defaultSpec: []const u8 = "info";
-const rootName = "root";
 
 pub fn initFromEnvvar(envvarName: []const u8, allocator: Allocator) !This {
     const spec: []const u8 = std.process.getEnvVarOwned(allocator, envvarName) catch defaultSpec;
-    defer if (spec != defaultSpec) allocator.free(spec);
+    defer if (spec.ptr != defaultSpec.ptr) allocator.free(spec);
 
-    return initFromStringSpec(spec);
+    return initFromStringSpec(spec, allocator);
 }
 
 pub fn initFromStringSpec(spec: []const u8, allocator: Allocator) !This {
     var root = try allocator.create(Node);
     root.* = Node{
         .allocator = allocator,
-        .name = rootName,
+        .name = "root",
         .parent = null,
         .configured_log_level = Level.info,
         .kids = std.StringHashMap(*Node).init(allocator),
@@ -72,8 +71,7 @@ const Node = struct {
             self.allocator.destroy(v.*);
         }
         self.kids.deinit();
-        if (self.name.ptr != rootName.ptr)
-            self.allocator.free(self.name);
+        if (self.parent != null) self.allocator.free(self.name);
     }
 
     pub fn logLevel(self: *const Node) Level {
@@ -148,6 +146,14 @@ test "one root" {
     defer cfg.deinit();
 
     try testing.expectEqual(Level.debug, cfg.root.configured_log_level);
+    try testing.expectEqual(0, cfg.root.kids.count());
+}
+
+test "default" {
+    var cfg = try This.initFromStringSpec("info", testing.allocator);
+    defer cfg.deinit();
+
+    try testing.expectEqual(Level.info, cfg.root.configured_log_level);
     try testing.expectEqual(0, cfg.root.kids.count());
 }
 

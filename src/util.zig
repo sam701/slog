@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const Level = enum(u8) {
+pub const Level = enum(u3) {
     trace,
     debug,
     info,

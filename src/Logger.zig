@@ -3,8 +3,8 @@ const Allocator = std.mem.Allocator;
 const ObjectMap = std.json.ObjectMap;
 const Value = std.json.Value;
 
-const EventDispatcher = @import("handler.zig").EventDispatcher;
-const util = @import("util.zig");
+const EventDispatcher = @import("./handler.zig").EventDispatcher;
+const util = @import("./util.zig");
 const Level = util.Level;
 const LogEvent = util.LogEvent;
 
