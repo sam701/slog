@@ -1,7 +1,6 @@
 const std = @import("std");
-const testing = std.testing;
-
 const ObjectMap = std.json.ObjectMap;
+const LogLevelSpec = @import("./LogLevelSpec.zig");
 
 pub const Registry = struct {
     allocator: std.mem.Allocator,
@@ -10,3 +9,7 @@ pub const Registry = struct {
         return Registry{ .allocator = allocator };
     }
 };
+
+comptime {
+    _ = @import("./LogLevelSpec.zig");
+}

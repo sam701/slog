@@ -6,6 +6,17 @@ pub const Level = enum(u8) {
     info,
     warn,
     @"error",
+
+    pub const ErrInvalid = error.InvalidLogLevel;
+
+    pub fn parse(str: []const u8) error{InvalidLogLevel}!Level {
+        if (std.mem.eql(u8, str, "trace")) return Level.trace;
+        if (std.mem.eql(u8, str, "debug")) return Level.debug;
+        if (std.mem.eql(u8, str, "info")) return Level.info;
+        if (std.mem.eql(u8, str, "warn")) return Level.warn;
+        if (std.mem.eql(u8, str, "error")) return Level.@"error";
+        return ErrInvalid;
+    }
 };
 
 pub const OutputStream = struct {
@@ -40,13 +51,6 @@ pub const Formatter = union(enum) {
     //     _ = event;
     //     unreachable;
     // }
-};
-
-/// Contains log level for a logger name.
-pub const LogLevelSpecNode = struct {
-    name: []const u8,
-    log_level: Level,
-    kids: std.StringHashMap(LogLevelSpecNode),
 };
 
 pub const LogEvent = struct {
