@@ -19,40 +19,6 @@ pub const Level = enum(u3) {
     }
 };
 
-pub const OutputStream = struct {
-    inner: std.fs.File,
-
-    pub fn stdout() OutputStream {
-        return OutputStream{ .inner = std.io.getStdOut() };
-    }
-
-    pub fn stderr() OutputStream {
-        return OutputStream{ .inner = std.io.getStdErr() };
-    }
-
-    pub fn file(path: []const u8) std.fs.File.OpenError!OutputStream {
-        return OutputStream{ .inner = try std.fs.cwd().openFile(path, .{ .mode = .write_only }) };
-    }
-};
-
-pub const ColorUsage = enum {
-    always,
-    auto,
-    never,
-};
-
-pub const Formatter = union(enum) {
-    json,
-    text: ColorUsage,
-
-    // pub fn format(self: Formatter, out: *const OutputStream, event: *const LogEvent) !void {
-    //     _ = self;
-    //     _ = out;
-    //     _ = event;
-    //     unreachable;
-    // }
-};
-
 pub const LogEvent = struct {
     timestamp_millis: u64,
     logger_name: []const u8,

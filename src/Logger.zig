@@ -3,68 +3,67 @@ const Allocator = std.mem.Allocator;
 const ObjectMap = std.json.ObjectMap;
 const Value = std.json.Value;
 
-const EventDispatcher = @import("./handler.zig").EventDispatcher;
+const EventDispatcher = @import("./Dispatcher.zig");
+const Node = @import("./LogLevelSpecNode.zig");
 const util = @import("./util.zig");
 const Level = util.Level;
 const LogEvent = util.LogEvent;
 
-const This = @This();
+const Self = @This();
 
 name: []const u8,
 allocator: std.mem.Allocator,
 constant_fields: ?ObjectMap = null,
 dispatcher: EventDispatcher,
 
-pub fn init(name: []const u8, allocator: Allocator, dispatcher: EventDispatcher) This {
-    return This{
-        .name = allocator.dupe(u8, name),
-        .allocator = allocator,
-        .dispatcher = dispatcher,
-    };
-}
+// pub fn init(name: []const u8, allocator: Allocator, dispatcher: EventDispatcher) This {
+//     return This{
+//         .name = try allocator.dupe(u8, name),
+//         .allocator = allocator,
+//         .dispatcher = dispatcher,
+//     };
+// }
 
-pub fn deinit(self: *This) void {
-    if (self.constant_fields) |fields| {
-        fields.deinit();
-    }
+pub fn deinit(self: *Self) void {
+    if (self.constant_fields) |*fields| fields.deinit();
     self.allocator.free(self.name);
 }
 
-pub fn newChildLogger(self: *const This, name: []const u8) This {
+pub fn newChildLogger(self: *const Self, name: []const u8) !Self {
     var lname = try self.allocator.alloc(u8, self.name.len + name.len + 1);
     @memcpy(lname, self.name);
     lname[self.name.len] = '.';
     @memcpy(lname[self.name.len + 1 ..], lname);
 
-    return This{
+    return Self{
         .name = lname,
         .allocator = self.allocator,
-        .constant_fields = if (self.constant_fields) |fields| fields.clone() else null,
+        .constant_fields = if (self.constant_fields) |fields| try fields.clone() else null,
         .dispatcher = self.dispatcher.createChildDispatcher(name),
     };
 }
 
-pub fn trace(self: *const This, message: []const u8, fields: anytype) void {
+pub fn trace(self: *const Self, message: []const u8, fields: anytype) void {
     self.log(Level.Trace, message, fields);
 }
 
-pub fn debug(self: *const This, message: []const u8, fields: anytype) void {
+pub fn debug(self: *const Self, message: []const u8, fields: anytype) void {
     self.log(Level.Debug, message, fields);
 }
 
-pub fn info(self: *const This, message: []const u8, fields: anytype) void {
+pub fn info(self: *const Self, message: []const u8, fields: anytype) void {
     self.log(Level.Info, message, fields);
 }
 
-pub fn warn(self: *const This, message: []const u8, fields: anytype) void {
+pub fn warn(self: *const Self, message: []const u8, fields: anytype) void {
     self.log(Level.Warn, message, fields);
 }
 
-pub fn err(self: *const This, message: []const u8, fields: anytype) void {
+pub fn err(self: *const Self, message: []const u8, fields: anytype) void {
     self.log(Level.Error, message, fields);
 }
 
-fn log(self: *const This, level: Level, message: []const u8, fields: anytype) void {
+fn log(self: *const Self, level: Level, message: []const u8, fields: anytype) void {
     // TODO: consider to get rid of the LogEvent to avoid unnecessary memory allocation.
     const event = LogEvent{
         .timestamp_millis = std.time.milliTimestamp(),
@@ -79,7 +78,7 @@ fn log(self: *const This, level: Level, message: []const u8, fields: anytype) vo
     try self.dispatcher.dispatch(&event);
 }
 
-fn toObjectMap(self: *const This, fields: anytype) !ObjectMap {
+fn toObjectMap(self: *const Self, fields: anytype) !ObjectMap {
     var map = try ObjectMap.init(self.allocator);
 
     const FieldsType = @TypeOf(fields);

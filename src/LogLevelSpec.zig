@@ -2,28 +2,29 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const testing = std.testing;
 
+const Node = @import("./LogLevelSpecNode.zig");
 const Level = @import("./util.zig").Level;
 
 // const Logger = @import("Logger.zig");
-const This = @This();
+const Self = @This();
 
 root: *Node,
 allocator: std.mem.Allocator,
 
-pub fn initFromDefaultEnvvar(allocator: Allocator) !This {
+pub fn initFromDefaultEnvvar(allocator: Allocator) !Self {
     return initFromEnvvar("ZIG_LOG", allocator);
 }
 
 const defaultSpec: []const u8 = "info";
 
-pub fn initFromEnvvar(envvarName: []const u8, allocator: Allocator) !This {
+pub fn initFromEnvvar(envvarName: []const u8, allocator: Allocator) !Self {
     const spec: []const u8 = std.process.getEnvVarOwned(allocator, envvarName) catch defaultSpec;
     defer if (spec.ptr != defaultSpec.ptr) allocator.free(spec);
 
     return initFromStringSpec(spec, allocator);
 }
 
-pub fn initFromStringSpec(spec: []const u8, allocator: Allocator) !This {
+pub fn initFromStringSpec(spec: []const u8, allocator: Allocator) !Self {
     var root = try allocator.create(Node);
     root.* = Node{
         .allocator = allocator,
@@ -51,53 +52,10 @@ pub fn initFromStringSpec(spec: []const u8, allocator: Allocator) !This {
     };
 }
 
-pub fn deinit(self: *This) void {
+pub fn deinit(self: *Self) void {
     self.root.deinit();
     self.allocator.destroy(self.root);
 }
-
-/// Contains log level for a logger name.
-const Node = struct {
-    name: []const u8,
-    parent: ?*Node,
-    configured_log_level: ?Level = null,
-    allocator: Allocator,
-    kids: std.StringHashMap(*Node),
-
-    fn deinit(self: *Node) void {
-        var it = self.kids.valueIterator();
-        while (it.next()) |v| {
-            v.*.deinit();
-            self.allocator.destroy(v.*);
-        }
-        self.kids.deinit();
-        if (self.parent != null) self.allocator.free(self.name);
-    }
-
-    pub fn logLevel(self: *const Node) Level {
-        return if (self.configured_log_level) |level| level else if (self.parent) |parent| parent.logLevel() else unreachable;
-    }
-
-    fn getKid(self: *Node, path: []const []const u8) !*Node {
-        if (path.len == 0) return self;
-
-        const head = path[0];
-
-        if (self.kids.get(head)) |kid| {
-            return kid.getKid(path[1..]);
-        } else {
-            var kid = try self.allocator.create(Node);
-            kid.* = Node{
-                .allocator = self.allocator,
-                .name = try self.allocator.dupe(u8, head),
-                .parent = self,
-                .kids = std.StringHashMap(*Node).init(self.allocator),
-            };
-            try self.kids.put(kid.name, kid);
-            return kid.getKid(path[1..]);
-        }
-    }
-};
 
 /// Has the form [path=]level
 const SpecChunk = struct {
@@ -142,7 +100,7 @@ fn parseChunk(text: []const u8, allocator: Allocator) !?ParseChunkResult {
 }
 
 test "one root" {
-    var cfg = try This.initFromStringSpec("debug", testing.allocator);
+    var cfg = try Self.initFromStringSpec("debug", testing.allocator);
     defer cfg.deinit();
 
     try testing.expectEqual(Level.debug, cfg.root.configured_log_level);
@@ -150,7 +108,7 @@ test "one root" {
 }
 
 test "default" {
-    var cfg = try This.initFromStringSpec("info", testing.allocator);
+    var cfg = try Self.initFromStringSpec("info", testing.allocator);
     defer cfg.deinit();
 
     try testing.expectEqual(Level.info, cfg.root.configured_log_level);
@@ -158,7 +116,7 @@ test "default" {
 }
 
 test "one path" {
-    var cfg = try This.initFromStringSpec("error,mod1.mod2=warn,mod1.mod3.mod4=trace", testing.allocator);
+    var cfg = try Self.initFromStringSpec("error,mod1.mod2=warn,mod1.mod3.mod4=trace", testing.allocator);
     defer cfg.deinit();
 
     try testing.expectEqual(Level.@"error", cfg.root.configured_log_level);
