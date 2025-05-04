@@ -57,6 +57,10 @@ pub fn deinit(self: *Self) void {
     self.allocator.destroy(self.root);
 }
 
+pub fn findNode(self: *const Self, module_name: []const u8) *const Node {
+    return self.root.kids.get(module_name) orelse self.root;
+}
+
 /// Has the form [path=]level
 const SpecChunk = struct {
     path: ?[]const []const u8 = null,

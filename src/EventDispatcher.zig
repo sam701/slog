@@ -1,4 +1,4 @@
-const LogHandler = @import("./handler.zig").LogHandler;
+const LogHandler = @import("./LogHandler.zig");
 const SpecNode = @import("./LogLevelSpecNode.zig");
 const util = @import("./util.zig");
 const Level = util.Level;
@@ -6,12 +6,12 @@ const LogEvent = util.LogEvent;
 
 const Self = @This();
 
-handler: *const LogHandler,
+handler: *LogHandler,
 log_level: Level,
 spec: ?*const SpecNode = null,
 
 pub fn dispatch(self: *const Self, event: *const LogEvent) !void {
-    if (event.level >= self.log_level) {
+    if (@intFromEnum(event.level) >= @intFromEnum(self.log_level)) {
         try self.handler.handle(event);
     }
 }

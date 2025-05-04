@@ -20,10 +20,10 @@ pub const Level = enum(u3) {
 };
 
 pub const LogEvent = struct {
-    timestamp_millis: u64,
+    timestamp_millis: i64,
     logger_name: []const u8,
     level: Level,
     message: []const u8,
-    fix_fields: ?*const std.json.ObjectMap,
-    fields: *const std.json.ObjectMap,
+    constant_fields: ?std.json.ObjectMap,
+    fields: std.json.ObjectMap,
 };

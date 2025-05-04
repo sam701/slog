@@ -3,7 +3,9 @@ const Allocator = std.mem.Allocator;
 const ObjectMap = std.json.ObjectMap;
 const Value = std.json.Value;
 
-const EventDispatcher = @import("./Dispatcher.zig");
+const EventDispatcher = @import("./EventDispatcher.zig");
+const LogHandler = @import("./LogHandler.zig");
+const LogLevelSpec = @import("./LogLevelSpec.zig");
 const Node = @import("./LogLevelSpecNode.zig");
 const util = @import("./util.zig");
 const Level = util.Level;
@@ -16,13 +18,18 @@ allocator: std.mem.Allocator,
 constant_fields: ?ObjectMap = null,
 dispatcher: EventDispatcher,
 
-// pub fn init(name: []const u8, allocator: Allocator, dispatcher: EventDispatcher) This {
-//     return This{
-//         .name = try allocator.dupe(u8, name),
-//         .allocator = allocator,
-//         .dispatcher = dispatcher,
-//     };
-// }
+pub fn init(name: []const u8, spec: *const LogLevelSpec, handler: *LogHandler) !Self {
+    const node = spec.findNode(name);
+    return Self{
+        .name = try spec.allocator.dupe(u8, name),
+        .allocator = spec.allocator,
+        .dispatcher = EventDispatcher{
+            .handler = handler,
+            .spec = node,
+            .log_level = node.logLevel(),
+        },
+    };
+}
 
 pub fn deinit(self: *Self) void {
     if (self.constant_fields) |*fields| fields.deinit();
@@ -43,29 +50,29 @@ pub fn newChildLogger(self: *const Self, name: []const u8) !Self {
     };
 }
 
-pub fn trace(self: *const Self, message: []const u8, fields: anytype) void {
-    self.log(Level.Trace, message, fields);
+pub fn trace(self: *Self, message: []const u8, fields: anytype) !void {
+    return self.log(Level.trace, message, fields);
 }
 
-pub fn debug(self: *const Self, message: []const u8, fields: anytype) void {
-    self.log(Level.Debug, message, fields);
+pub fn debug(self: *Self, message: []const u8, fields: anytype) !void {
+    return self.log(Level.debug, message, fields);
 }
 
-pub fn info(self: *const Self, message: []const u8, fields: anytype) void {
-    self.log(Level.Info, message, fields);
+pub fn info(self: *Self, message: []const u8, fields: anytype) !void {
+    return self.log(Level.info, message, fields);
 }
 
-pub fn warn(self: *const Self, message: []const u8, fields: anytype) void {
-    self.log(Level.Warn, message, fields);
+pub fn warn(self: *Self, message: []const u8, fields: anytype) !void {
+    self.log(Level.warn, message, fields);
 }
 
-pub fn err(self: *const Self, message: []const u8, fields: anytype) void {
-    self.log(Level.Error, message, fields);
+pub fn err(self: *Self, message: []const u8, fields: anytype) !void {
+    return self.log(Level.@"error", message, fields);
 }
 
-fn log(self: *const Self, level: Level, message: []const u8, fields: anytype) void {
+fn log(self: *Self, level: Level, message: []const u8, fields: anytype) !void {
     // TODO: consider to get rid of the LogEvent to avoid unnecessary memory allocation.
-    const event = LogEvent{
+    var event = LogEvent{
         .timestamp_millis = std.time.milliTimestamp(),
         .logger_name = self.name,
         .level = level,
@@ -79,7 +86,7 @@ fn log(self: *const Self, level: Level, message: []const u8, fields: anytype) vo
 }
 
 fn toObjectMap(self: *const Self, fields: anytype) !ObjectMap {
-    var map = try ObjectMap.init(self.allocator);
+    var map = ObjectMap.init(self.allocator);
 
     const FieldsType = @TypeOf(fields);
     const ti = @typeInfo(FieldsType);
@@ -89,7 +96,6 @@ fn toObjectMap(self: *const Self, fields: anytype) !ObjectMap {
 
     const ff = ti.@"struct".fields;
     inline for (ff) |field| {
-        std.debug.print("aa = {any}\n", .{@typeInfo(field.type)});
         const field_type = @typeInfo(field.type);
         const value: Value = val: switch (field_type) {
             .pointer => |pti| {
