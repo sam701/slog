@@ -40,9 +40,9 @@ pub fn deinit(self: *Self) void {
 
 pub fn newChildLogger(self: *const Self, name: []const u8) !Self {
     var lname = try self.allocator.alloc(u8, self.name.len + name.len + 1);
-    @memcpy(lname, self.name);
+    @memcpy(lname[0..self.name.len], self.name);
     lname[self.name.len] = '.';
-    @memcpy(lname[self.name.len + 1 ..], lname);
+    @memcpy(lname[self.name.len + 1 ..], name);
 
     return Self{
         .name = lname,
@@ -73,7 +73,6 @@ pub fn err(self: *Self, message: []const u8, fields: anytype) !void {
 }
 
 fn log(self: *Self, level: Level, message: []const u8, fields: anytype) !void {
-    std.debug.print("== log\n", .{});
     const ts = try zeit.local(self.allocator, null);
     defer ts.deinit();
 
