@@ -3,6 +3,8 @@ const Allocator = std.mem.Allocator;
 const ObjectMap = std.json.ObjectMap;
 const Value = std.json.Value;
 
+const zeit = @import("zeit");
+
 const EventDispatcher = @import("./EventDispatcher.zig");
 const LogHandler = @import("./LogHandler.zig");
 const LogLevelSpec = @import("./LogLevelSpec.zig");
@@ -71,9 +73,13 @@ pub fn err(self: *Self, message: []const u8, fields: anytype) !void {
 }
 
 fn log(self: *Self, level: Level, message: []const u8, fields: anytype) !void {
+    std.debug.print("== log\n", .{});
+    const ts = try zeit.local(self.allocator, null);
+    defer ts.deinit();
+
     // TODO: consider to get rid of the LogEvent to avoid unnecessary memory allocation.
     var event = LogEvent{
-        .timestamp_millis = std.time.milliTimestamp(),
+        .timestamp = try zeit.instant(.{ .source = .now, .timezone = &ts }),
         .logger_name = self.name,
         .level = level,
         .message = message,

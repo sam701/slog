@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const zeit = @import("zeit");
+
 pub const Level = enum(u3) {
     trace,
     debug,
@@ -20,7 +22,7 @@ pub const Level = enum(u3) {
 };
 
 pub const LogEvent = struct {
-    timestamp_millis: i64,
+    timestamp: zeit.Instant,
     logger_name: []const u8,
     level: Level,
     message: []const u8,

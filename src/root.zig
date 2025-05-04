@@ -16,7 +16,7 @@ test "main" {
     const LogHandler = @import("./LogHandler.zig");
 
     var logHandler = LogHandler{
-        .output = std.io.getStdOut(),
+        .output = std.io.getStdErr(),
         .formatter = Formatter{ .text = ColorUsage.auto },
     };
 

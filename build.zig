@@ -37,6 +37,13 @@ pub fn build(b: *std.Build) void {
         .root_module = lib_mod,
     });
 
+    const dep_zeit = b.dependency("zeit", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const mod_zeit = dep_zeit.module("zeit");
+    lib_mod.addImport("zeit", mod_zeit);
+
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
