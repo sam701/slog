@@ -1,10 +1,11 @@
 pub const Logger = @import("./Logger.zig");
 pub const LogLevelSpec = @import("./LogLevelSpec.zig");
-pub const Formatter = @import("./formatter.zig").Formatter;
-pub const ColorUsage = @import("./formatter.zig").ColorUsage;
+pub const formatter = @import("./formatter.zig");
+pub const Formatter = formatter.Formatter;
+pub const ColorUsage = formatter.ColorUsage;
 
 comptime {
-    @import("std").testing.refAllDeclsRecursive(@This());
+    _ = @import("./LogLevelSpec.zig");
 }
 
 test "main" {
@@ -15,9 +16,11 @@ test "main" {
     const std = @import("std");
     const LogHandler = @import("./LogHandler.zig");
 
+    var colorSchema = try formatter.defaultColorSchema(testing.allocator);
+    defer colorSchema.deinit();
     var logHandler = LogHandler{
         .output = std.io.getStdErr(),
-        .formatter = Formatter{ .text = ColorUsage.auto },
+        .formatter = Formatter{ .text = .{ .auto = &colorSchema } },
     };
 
     var log = try Logger.init("main", &spec, &logHandler);
@@ -26,7 +29,8 @@ test "main" {
     var log2 = try log.newChildLogger("kid1");
     defer log2.deinit();
 
-    try log2.info("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30 });
+    try log.info("info test", .{ .field1 = "value1", .name = "John", .age = 30 });
+    try log2.debug("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30 });
 
     // try testing.expect(false);
 }
