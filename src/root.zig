@@ -23,7 +23,7 @@ test "main" {
     var log = try Logger.init("main", &spec, &logHandler);
     defer log.deinit();
 
-    try log.info("Hello, world!", .{ .field1 = "value1" });
+    try log.info("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30 });
 
     // try testing.expect(false);
 }

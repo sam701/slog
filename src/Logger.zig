@@ -111,8 +111,8 @@ fn toObjectMap(self: *const Self, fields: anytype) !ObjectMap {
                 }
                 unreachable;
             },
-            .int => Value{ .integer = @field(fields, field.name) },
-            .float => Value{ .float = @field(fields, field.name) },
+            .int, .comptime_int => Value{ .integer = @field(fields, field.name) },
+            .float, .comptime_float => Value{ .float = @field(fields, field.name) },
             else => {
                 @compileError(std.fmt.comptimePrint("unsupported type: {any}", .{field_type}));
             },
