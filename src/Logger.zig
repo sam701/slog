@@ -65,7 +65,7 @@ pub fn info(self: *Self, message: []const u8, fields: anytype) !void {
 }
 
 pub fn warn(self: *Self, message: []const u8, fields: anytype) !void {
-    self.log(Level.warn, message, fields);
+    return self.log(Level.warn, message, fields);
 }
 
 pub fn err(self: *Self, message: []const u8, fields: anytype) !void {
@@ -112,6 +112,8 @@ fn toObjectMap(self: *const Self, fields: anytype) !ObjectMap {
             },
             .int, .comptime_int => Value{ .integer = @field(fields, field.name) },
             .float, .comptime_float => Value{ .float = @field(fields, field.name) },
+            .bool => Value{ .bool = @field(fields, field.name) },
+            .null => Value.null,
             else => {
                 @compileError(std.fmt.comptimePrint("unsupported type: {any}", .{field_type}));
             },

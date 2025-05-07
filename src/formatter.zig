@@ -15,38 +15,54 @@ pub const ColorUsage = union(enum) {
 
 pub const ColorItem = enum {
     timestamp,
-
-    log_level_trace,
-    log_level_debug,
-    log_level_info,
-    log_level_warn,
-    log_level_error,
-
     logger_name,
     message,
     field_name,
-    field_value_string,
-    field_value_number,
-    field_value_boolean,
 };
 
+pub const FieldValueType = enum {
+    null,
+    bool,
+    string,
+    number,
+};
+
+pub const Color = []const u8;
+
 /// Color schema for the formatter.
-pub const ColorSchema = std.AutoHashMap(ColorItem, []const u8);
+pub const ColorSchema = struct {
+    items: std.AutoHashMap(ColorItem, Color),
+    log_levels: std.AutoHashMap(Level, Color),
+    field_types: std.AutoHashMap(FieldValueType, Color),
+
+    pub fn deinit(self: *ColorSchema) void {
+        self.items.deinit();
+        self.log_levels.deinit();
+        self.field_types.deinit();
+    }
+};
 
 pub fn defaultColorSchema(alloc: std.mem.Allocator) !ColorSchema {
-    var schema = ColorSchema.init(alloc);
-    try schema.put(ColorItem.timestamp, "38;5;246");
-    try schema.put(ColorItem.log_level_trace, "38;5;244");
-    try schema.put(ColorItem.log_level_debug, "34;1");
-    try schema.put(ColorItem.log_level_info, "38;5;247");
-    try schema.put(ColorItem.log_level_warn, "38;5;248");
-    try schema.put(ColorItem.log_level_error, "38;5;249");
-    try schema.put(ColorItem.logger_name, "36");
-    try schema.put(ColorItem.message, "38;5;251");
-    try schema.put(ColorItem.field_name, "38;5;246");
-    try schema.put(ColorItem.field_value_string, "38;5;253");
-    try schema.put(ColorItem.field_value_number, "38;5;254");
-    try schema.put(ColorItem.field_value_boolean, "38;5;255");
+    var schema = ColorSchema{
+        .items = std.AutoHashMap(ColorItem, Color).init(alloc),
+        .log_levels = std.AutoHashMap(Level, Color).init(alloc),
+        .field_types = std.AutoHashMap(FieldValueType, Color).init(alloc),
+    };
+
+    try schema.items.put(ColorItem.timestamp, "38;5;243");
+    try schema.items.put(ColorItem.logger_name, "36");
+    try schema.items.put(ColorItem.field_name, "2;97");
+
+    try schema.log_levels.put(Level.trace, "38;5;244");
+    try schema.log_levels.put(Level.debug, "34");
+    try schema.log_levels.put(Level.info, "32");
+    try schema.log_levels.put(Level.warn, "33");
+    try schema.log_levels.put(Level.@"error", "31");
+
+    try schema.field_types.put(FieldValueType.null, "33");
+    try schema.field_types.put(FieldValueType.bool, "36");
+    try schema.field_types.put(FieldValueType.number, "32");
+    try schema.field_types.put(FieldValueType.string, "3;94");
     return schema;
 }
 
@@ -64,7 +80,7 @@ pub const Formatter = union(enum) {
         try p.reset();
         try w.writeByte(' ');
 
-        try p.writeItemColor(.log_level_debug);
+        try p.writeLogLevelColor(event.level);
         try w.writeAll(levelName(event.level));
         try p.reset();
         try w.writeByte(' ');
@@ -86,7 +102,15 @@ pub const Formatter = union(enum) {
             try p.writeItemColor(.field_name);
             try w.print("{s}=", .{entry.key_ptr.*});
             try p.reset();
+            const value_type: FieldValueType = switch (entry.value_ptr.*) {
+                .null => .null,
+                .bool => .bool,
+                .integer, .float => .number,
+                else => .string,
+            };
+            try p.writeFieldTypeColor(value_type);
             try std.json.stringify(entry.value_ptr.*, .{}, w);
+            try p.reset();
         }
         try w.writeByte('\n');
     }
@@ -110,7 +134,22 @@ const ColorPrinter = struct {
 
     fn writeItemColor(self: *ColorPrinter, color_item: ColorItem) !void {
         if (self.color_schema) |schema| {
-            if (schema.get(color_item)) |color| {
+            if (schema.items.get(color_item)) |color| {
+                try self.writeColor(color);
+            }
+        }
+    }
+    fn writeLogLevelColor(self: *ColorPrinter, level: Level) !void {
+        if (self.color_schema) |schema| {
+            if (schema.log_levels.get(level)) |color| {
+                try self.writeColor(color);
+            }
+        }
+    }
+
+    fn writeFieldTypeColor(self: *ColorPrinter, field_type: FieldValueType) !void {
+        if (self.color_schema) |schema| {
+            if (schema.field_types.get(field_type)) |color| {
                 try self.writeColor(color);
             }
         }
