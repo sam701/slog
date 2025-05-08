@@ -62,4 +62,16 @@ pub fn build(b: *std.Build) void {
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+
+    const lldb = b.addSystemCommand(&.{
+        "lldb",
+        // add lldb flags before --
+        "--",
+    });
+    // appends the unit_tests executable path to the lldb command line
+    lldb.addArtifactArg(lib_unit_tests);
+    // lldb.addArg can add arguments after the executable path
+
+    const lldb_step = b.step("debug", "run the tests under lldb");
+    lldb_step.dependOn(&lldb.step);
 }
