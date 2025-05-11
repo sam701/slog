@@ -21,26 +21,27 @@ pub fn initFromEnvvar(envvarName: []const u8, allocator: Allocator) !Self {
     const spec: []const u8 = std.process.getEnvVarOwned(allocator, envvarName) catch defaultSpec;
     defer if (spec.ptr != defaultSpec.ptr) allocator.free(spec);
 
-    return initFromStringSpec(spec, allocator);
+    return initFromStringSpec(spec, allocator) catch
+        return initFromStringSpec(defaultSpec, allocator);
 }
 
-pub fn initFromStringSpec(spec: []const u8, allocator: Allocator) !Self {
-    var root = try allocator.create(Node);
+pub fn initFromStringSpec(spec: []const u8, alloc: Allocator) !Self {
+    var root = try alloc.create(Node);
+    errdefer alloc.destroy(root);
     root.* = Node{
-        .allocator = allocator,
         .name = "root",
         .parent = null,
         .configured_log_level = Level.info,
-        .kids = std.StringHashMap(*Node).init(allocator),
+        .kids = std.StringHashMap(*Node).init(alloc),
     };
     var spec2 = spec;
-    while (try parseChunk(spec2, allocator)) |result| {
-        defer if (result.chunk.path) |path| allocator.free(path);
+    while (try parseChunk(spec2, alloc)) |result| {
+        defer if (result.chunk.path) |path| alloc.free(path);
 
         var node = root;
 
         if (result.chunk.path) |path| {
-            node = try root.getKid(path);
+            node = try root.getKid(path, alloc);
         }
         node.configured_log_level = result.chunk.level;
 
@@ -48,12 +49,12 @@ pub fn initFromStringSpec(spec: []const u8, allocator: Allocator) !Self {
     }
     return .{
         .root = root,
-        .allocator = allocator,
+        .allocator = alloc,
     };
 }
 
 pub fn deinit(self: *Self) void {
-    self.root.deinit();
+    self.root.deinit(self.allocator);
     self.allocator.destroy(self.root);
 }
 

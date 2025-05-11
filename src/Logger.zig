@@ -38,7 +38,7 @@ pub fn deinit(self: *Self) void {
     self.allocator.free(self.name);
 }
 
-pub fn newChildLogger(self: *const Self, name: []const u8) !Self {
+pub fn initChildLogger(self: *const Self, name: []const u8) !Self {
     var lname = try self.allocator.alloc(u8, self.name.len + name.len + 1);
     @memcpy(lname[0..self.name.len], self.name);
     lname[self.name.len] = '.';

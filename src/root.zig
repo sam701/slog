@@ -1,8 +1,8 @@
-pub const Logger = @import("./Logger.zig");
-pub const LogLevelSpec = @import("./LogLevelSpec.zig");
-pub const formatter = @import("./formatter.zig");
+const formatter = @import("./formatter.zig");
 pub const Formatter = formatter.Formatter;
 pub const ColorUsage = formatter.ColorUsage;
+pub const Logger = @import("./Logger.zig");
+pub const LogLevelSpec = @import("./LogLevelSpec.zig");
 
 comptime {
     _ = @import("./LogLevelSpec.zig");
@@ -26,7 +26,7 @@ test "main" {
     var log = try Logger.init("main", &spec, &logHandler);
     defer log.deinit();
 
-    var log2 = try log.newChildLogger("kid1");
+    var log2 = try log.initChildLogger("kid1");
     defer log2.deinit();
 
     try log.info("info test", .{ .field1 = "value1", .name = "John", .age = 30 });
