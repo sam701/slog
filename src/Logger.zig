@@ -19,37 +19,67 @@ name: []const u8,
 allocator: std.mem.Allocator,
 constant_fields: ?ObjectMap = null,
 dispatcher: EventDispatcher,
+parent: ?*Self,
+kids: std.ArrayList(*Self),
 
-pub fn init(name: []const u8, spec: *const LogLevelSpec, handler: *LogHandler) !Self {
+pub fn init(name: []const u8, spec: *const LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Self {
     const node = spec.findNode(name);
-    return Self{
-        .name = try spec.allocator.dupe(u8, name),
-        .allocator = spec.allocator,
+    const self = try alloc.create(Self);
+
+    self.* = .{
+        .name = try alloc.dupe(u8, name),
+        .allocator = alloc,
         .dispatcher = EventDispatcher{
             .handler = handler,
             .spec = node,
             .log_level = node.logLevel(),
         },
+        .parent = null,
+        .kids = std.ArrayList(*Self).init(alloc),
     };
+    return self;
 }
 
 pub fn deinit(self: *Self) void {
+    for (self.kids.items) |kid| kid.deinit();
+    self.kids.deinit();
+
     if (self.constant_fields) |*fields| fields.deinit();
     self.allocator.free(self.name);
+    if (self.parent) |parent| {
+        // Remove this logger from parent's kids list.
+        var kids_index: ?usize = null;
+        for (parent.kids.items, 0..) |kid, ix| {
+            if (kid == self) {
+                kids_index = ix;
+                break;
+            }
+        }
+        if (kids_index) |ix| {
+            _ = parent.kids.swapRemove(ix);
+        } else unreachable;
+    }
+    self.allocator.destroy(self);
 }
 
-pub fn initChildLogger(self: *const Self, name: []const u8) !Self {
+pub fn initChildLogger(self: *Self, name: []const u8) !*Self {
     var lname = try self.allocator.alloc(u8, self.name.len + name.len + 1);
     @memcpy(lname[0..self.name.len], self.name);
     lname[self.name.len] = '.';
     @memcpy(lname[self.name.len + 1 ..], name);
 
-    return Self{
+    const kid = try self.allocator.create(Self);
+
+    kid.* = Self{
         .name = lname,
         .allocator = self.allocator,
         .constant_fields = if (self.constant_fields) |fields| try fields.clone() else null,
         .dispatcher = self.dispatcher.createChildDispatcher(name),
+        .parent = self,
+        .kids = std.ArrayList(*Self).init(self.allocator),
     };
+    try self.kids.append(kid);
+    return kid;
 }
 
 pub fn trace(self: *Self, message: []const u8, fields: anytype) !void {
