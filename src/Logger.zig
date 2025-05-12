@@ -4,6 +4,7 @@ const ObjectMap = std.json.ObjectMap;
 const Value = std.json.Value;
 
 const zeit = @import("zeit");
+const TimeZone = zeit.TimeZone;
 
 const EventDispatcher = @import("./EventDispatcher.zig");
 const LogHandler = @import("./LogHandler.zig");
@@ -22,9 +23,14 @@ dispatcher: EventDispatcher,
 parent: ?*Self,
 kids: std.ArrayList(*Self),
 
+timezone: *TimeZone,
+
 pub fn init(name: []const u8, spec: *const LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Self {
     const node = spec.findNode(name);
     const self = try alloc.create(Self);
+
+    const tz = try alloc.create(TimeZone);
+    tz.* = try zeit.local(alloc, null);
 
     self.* = .{
         .name = try alloc.dupe(u8, name),
@@ -36,6 +42,7 @@ pub fn init(name: []const u8, spec: *const LogLevelSpec, handler: *LogHandler, a
         },
         .parent = null,
         .kids = std.ArrayList(*Self).init(alloc),
+        .timezone = tz,
     };
     return self;
 }
@@ -47,17 +54,10 @@ pub fn deinit(self: *Self) void {
     if (self.constant_fields) |*fields| fields.deinit();
     self.allocator.free(self.name);
     if (self.parent) |parent| {
-        // Remove this logger from parent's kids list.
-        var kids_index: ?usize = null;
-        for (parent.kids.items, 0..) |kid, ix| {
-            if (kid == self) {
-                kids_index = ix;
-                break;
-            }
-        }
-        if (kids_index) |ix| {
-            _ = parent.kids.swapRemove(ix);
-        } else unreachable;
+        parent.removeKid(self);
+    } else {
+        self.timezone.deinit();
+        self.allocator.destroy(self.timezone);
     }
     self.allocator.destroy(self);
 }
@@ -77,9 +77,23 @@ pub fn initChildLogger(self: *Self, name: []const u8) !*Self {
         .dispatcher = self.dispatcher.createChildDispatcher(name),
         .parent = self,
         .kids = std.ArrayList(*Self).init(self.allocator),
+        .timezone = self.timezone,
     };
     try self.kids.append(kid);
     return kid;
+}
+
+fn removeKid(self: *Self, kid_ptr: *const Self) void {
+    var kids_index: ?usize = null;
+    for (self.kids.items, 0..) |kid, ix| {
+        if (kid == kid_ptr) {
+            kids_index = ix;
+            break;
+        }
+    }
+    if (kids_index) |ix| {
+        _ = self.kids.swapRemove(ix);
+    } else unreachable;
 }
 
 pub fn trace(self: *Self, message: []const u8, fields: anytype) !void {
@@ -103,12 +117,9 @@ pub fn err(self: *Self, message: []const u8, fields: anytype) !void {
 }
 
 fn log(self: *Self, level: Level, message: []const u8, fields: anytype) !void {
-    const ts = try zeit.local(self.allocator, null);
-    defer ts.deinit();
-
     // TODO: consider to get rid of the LogEvent to avoid unnecessary memory allocation.
     var event = LogEvent{
-        .timestamp = try zeit.instant(.{ .source = .now, .timezone = &ts }),
+        .timestamp = try zeit.instant(.{ .source = .now, .timezone = self.timezone }),
         .logger_name = self.name,
         .level = level,
         .message = message,
