@@ -19,7 +19,7 @@ test "main" {
         .formatter = Formatter{ .text = .{ .auto = &colorSchema } },
     };
 
-    var log = try Logger.init("main", &spec, &logHandler, testing.allocator);
+    var log = try Logger.initRoot(spec, &logHandler, testing.allocator);
     defer log.deinit();
 
     var log2 = try log.initChildLogger("kid1");

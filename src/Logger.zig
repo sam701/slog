@@ -16,7 +16,7 @@ const LogEvent = util.LogEvent;
 
 const Self = @This();
 
-name: []const u8,
+name: ?[]const u8,
 allocator: std.mem.Allocator,
 constant_fields: ?ObjectMap = null,
 dispatcher: EventDispatcher,
@@ -25,15 +25,15 @@ kids: std.ArrayList(*Self),
 
 timezone: *TimeZone,
 
-pub fn init(name: []const u8, spec: *const LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Self {
-    const node = spec.findNode(name);
+pub fn initRoot(spec: LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Self {
+    const node = spec.root;
     const self = try alloc.create(Self);
 
     const tz = try alloc.create(TimeZone);
     tz.* = try zeit.local(alloc, null);
 
     self.* = .{
-        .name = try alloc.dupe(u8, name),
+        .name = null,
         .allocator = alloc,
         .dispatcher = EventDispatcher{
             .handler = handler,
@@ -52,7 +52,7 @@ pub fn deinit(self: *Self) void {
     self.kids.deinit();
 
     if (self.constant_fields) |*fields| fields.deinit();
-    self.allocator.free(self.name);
+    if (self.name) |name| self.allocator.free(name);
     if (self.parent) |parent| {
         parent.removeKid(self);
     } else {
@@ -63,10 +63,15 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn initChildLogger(self: *Self, name: []const u8) !*Self {
-    var lname = try self.allocator.alloc(u8, self.name.len + name.len + 1);
-    @memcpy(lname[0..self.name.len], self.name);
-    lname[self.name.len] = '.';
-    @memcpy(lname[self.name.len + 1 ..], name);
+    var lname: []u8 = undefined;
+    if (self.name) |self_name| {
+        lname = try self.allocator.alloc(u8, self_name.len + name.len + 1);
+        @memcpy(lname[0..self_name.len], self_name);
+        lname[self_name.len] = '.';
+        @memcpy(lname[self_name.len + 1 ..], name);
+    } else {
+        lname = try self.allocator.dupe(u8, name);
+    }
 
     const kid = try self.allocator.create(Self);
 

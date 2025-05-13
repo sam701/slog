@@ -210,10 +210,12 @@ pub const Formatter = union(enum) {
         try p.reset();
         try w.writeByte(' ');
 
-        try p.writeItemColor(.logger_name);
-        try w.writeAll(event.logger_name);
-        try p.reset();
-        try w.writeByte(' ');
+        if (event.logger_name) |lname| {
+            try p.writeItemColor(.logger_name);
+            try w.writeAll(lname);
+            try p.reset();
+            try w.writeByte(' ');
+        }
 
         try p.writeItemColor(.message);
         try w.writeAll(event.message);
