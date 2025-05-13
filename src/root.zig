@@ -4,10 +4,6 @@ pub const ColorUsage = formatter.ColorUsage;
 pub const Logger = @import("./Logger.zig");
 pub const LogLevelSpec = @import("./LogLevelSpec.zig");
 
-comptime {
-    _ = @import("./LogLevelSpec.zig");
-}
-
 test "main" {
     const testing = @import("std").testing;
     var spec = try LogLevelSpec.initFromDefaultEnvvar(testing.allocator);

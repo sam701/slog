@@ -9,7 +9,6 @@ const Level = @import("./util.zig").Level;
 const Self = @This();
 
 root: *Node,
-allocator: std.mem.Allocator,
 
 pub fn initFromDefaultEnvvar(allocator: Allocator) !Self {
     return initFromEnvvar("ZIG_LOG", allocator);
@@ -33,6 +32,7 @@ pub fn initFromStringSpec(spec: []const u8, alloc: Allocator) !Self {
         .parent = null,
         .configured_log_level = Level.info,
         .kids = std.StringHashMap(*Node).init(alloc),
+        .allocator = alloc,
     };
     var spec2 = spec;
     while (try parseChunk(spec2, alloc)) |result| {
@@ -41,7 +41,7 @@ pub fn initFromStringSpec(spec: []const u8, alloc: Allocator) !Self {
         var node = root;
 
         if (result.chunk.path) |path| {
-            node = try root.getKid(path, alloc);
+            node = try root.getKid(path);
         }
         node.configured_log_level = result.chunk.level;
 
@@ -49,13 +49,11 @@ pub fn initFromStringSpec(spec: []const u8, alloc: Allocator) !Self {
     }
     return .{
         .root = root,
-        .allocator = alloc,
     };
 }
 
 pub fn deinit(self: *Self) void {
-    self.root.deinit(self.allocator);
-    self.allocator.destroy(self.root);
+    self.root.deinit();
 }
 
 pub fn findNode(self: *const Self, module_name: []const u8) *const Node {
