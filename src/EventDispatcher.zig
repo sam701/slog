@@ -8,7 +8,12 @@ const Self = @This();
 
 handler: *LogHandler,
 log_level: Level,
-spec: ?*const SpecNode = null,
+spec: ?*SpecNode = null,
+
+pub fn deinit(self: Self) void {
+    self.handler.deinit();
+    if (self.spec) |spec| spec.deinit();
+}
 
 pub fn dispatch(self: *const Self, event: *const LogEvent) !void {
     if (@intFromEnum(event.level) >= @intFromEnum(self.log_level)) {

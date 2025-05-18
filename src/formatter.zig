@@ -10,12 +10,6 @@ const Output = @import("./LogHandler.zig").Output;
 const LogEvent = @import("./util.zig").LogEvent;
 const Level = @import("./util.zig").Level;
 
-pub const ColorUsage = union(enum) {
-    always: *const ColorSchema,
-    auto: *const ColorSchema,
-    never,
-};
-
 pub const ColorableItem = enum {
     timestamp,
     logger_name,
@@ -39,11 +33,15 @@ pub const ColorSchema = struct {
     log_levels: std.AutoHashMap(Level, Color),
     field_types: std.AutoHashMap(FieldValueType, Color),
 
-    pub fn init(alloc: Allocator) !ColorSchema {
-        const spec: []const u8 = std.process.getEnvVarOwned(alloc, "ZIG_LOG_COLORS") catch return initDefault(alloc);
+    pub fn initDefaultEnvVar(alloc: Allocator) !*ColorSchema {
+        return initEmpty("ZIG_LOG_COLOR", alloc);
+    }
+
+    pub fn initEnvVar(envvar: []const u8, alloc: Allocator) !ColorSchema {
+        const spec: []const u8 = std.process.getEnvVarOwned(alloc, envvar) catch return initDefault(alloc);
         defer alloc.free(spec);
 
-        return initSpec(spec, alloc) catch return initDefault(alloc);
+        return initString(spec, alloc) catch return initDefault(alloc);
     }
 
     fn initEmpty(alloc: Allocator) !ColorSchema {
@@ -54,7 +52,7 @@ pub const ColorSchema = struct {
         };
     }
 
-    pub fn initSpec(text: []const u8, alloc: Allocator) !ColorSchema {
+    pub fn initString(text: []const u8, alloc: Allocator) !ColorSchema {
         var schema = try initEmpty(alloc);
         schema.values_arena = ArenaAllocator.init(alloc);
         errdefer schema.deinit();
@@ -178,7 +176,7 @@ test "color format 1" {
     ck = ColorSchema.getColorKey("abc");
     try testing.expectEqual(null, ck);
 
-    var sc = try ColorSchema.initSpec("message=31,info=33,string=32;1", testing.allocator);
+    var sc = try ColorSchema.initString("message=31,info=33,string=32;1", testing.allocator);
     defer sc.deinit();
 
     try testing.expectEqual(1, sc.items.count());
@@ -192,13 +190,19 @@ test "color format 1" {
 }
 
 pub const Formatter = union(enum) {
-    text: ColorUsage,
+    text: ?ColorSchema,
     json,
+
+    pub fn deinit(self: *Formatter) void {
+        if (self.text) |*cs| {
+            cs.deinit();
+        }
+    }
 
     pub fn format(self: *Formatter, output: Output, event: *const LogEvent) !void {
         var w = output.writer();
 
-        var p = ColorPrinter{ .w = w, .color_schema = self.text.auto };
+        var p = ColorPrinter{ .w = w, .color_schema = if (self.text) |txt| &txt else null };
 
         try p.writeItemColor(.timestamp);
         try event.timestamp.time().gofmt(w, "2006-01-02T15:04:05.000");

@@ -10,10 +10,6 @@ const Self = @This();
 
 root: *Node,
 
-pub fn initFromDefaultEnvvar(allocator: Allocator) !Self {
-    return initFromEnvvar("ZIG_LOG", allocator);
-}
-
 const defaultSpec: []const u8 = "info";
 
 pub fn initFromEnvvar(envvarName: []const u8, allocator: Allocator) !Self {

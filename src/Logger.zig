@@ -25,7 +25,7 @@ kids: std.ArrayList(*Self),
 
 timezone: *TimeZone,
 
-pub fn initRoot(spec: LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Self {
+pub fn initRoot(name: ?[]const u8, spec: LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Self {
     const node = spec.root;
     const self = try alloc.create(Self);
 
@@ -33,7 +33,7 @@ pub fn initRoot(spec: LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Se
     tz.* = try zeit.local(alloc, null);
 
     self.* = .{
-        .name = null,
+        .name = name,
         .allocator = alloc,
         .dispatcher = EventDispatcher{
             .handler = handler,
@@ -58,6 +58,11 @@ pub fn deinit(self: *Self) void {
     } else {
         self.timezone.deinit();
         self.allocator.destroy(self.timezone);
+
+        self.dispatcher.handler.deinit();
+        if (self.dispatcher.spec) |spec| spec.deinit();
+
+        self.allocator.destroy(self.dispatcher.handler);
     }
     self.allocator.destroy(self);
 }

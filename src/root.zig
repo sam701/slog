@@ -1,25 +1,78 @@
+const std = @import("std");
+const testing = std.testing;
+
 const formatter = @import("./formatter.zig");
-pub const Formatter = formatter.Formatter;
-pub const ColorUsage = formatter.ColorUsage;
+const Formatter = formatter.Formatter;
+const ColorUsage = formatter.ColorUsage;
+const ColorSchema = formatter.ColorSchema;
 pub const Logger = @import("./Logger.zig");
-pub const LogLevelSpec = @import("./LogLevelSpec.zig");
+const LogHandler = @import("./LogHandler.zig");
+const LogLevelSpec = @import("./LogLevelSpec.zig");
+
+/// Describes where to get the specification from.
+pub const SpecSource = union(enum) {
+    /// Get spec from the default envvar, e.g. ZIG_LOG, ZIG_LOG_COLORS, ZIG_LOG_FORMAT.
+    from_default_envvar,
+
+    /// Get spec from the given envvar.
+    from_envvar: []const u8,
+
+    /// Get spec from the provided spec string.
+    from_string: []const u8,
+};
+
+pub const Options = struct {
+    root_logger_name: ?[]const u8 = null,
+    log_spec: SpecSource = SpecSource.from_default_envvar,
+    output: ?std.fs.File = null,
+    formatter: enum { text, json } = .text,
+    color: enum { always, auto, never } = .auto,
+    color_schema_spec: ?SpecSource = SpecSource.from_default_envvar,
+};
+
+pub fn initRootLogger(alloc: std.mem.Allocator, options: Options) !*Logger {
+    var spec = switch (options.log_spec) {
+        .from_default_envvar => try LogLevelSpec.initFromEnvvar("ZIG_LOG", alloc),
+        .from_envvar => |envvar| try LogLevelSpec.initFromEnvvar(envvar, alloc),
+        .from_string => |str| try LogLevelSpec.initFromStringSpec(str, alloc),
+    };
+    errdefer spec.deinit();
+
+    const output = options.output orelse std.io.getStdErr();
+    const frm = switch (options.formatter) {
+        .text => f: {
+            const use_color = switch (options.color) {
+                .always => true,
+                .never => false,
+                .auto => std.posix.isatty(output.handle),
+            };
+
+            const color_schema = if (use_color) cs: {
+                break :cs if (options.color_schema_spec) |schema_spec| {
+                    break :cs switch (schema_spec) {
+                        .from_default_envvar => try ColorSchema.initEnvVar("ZIG_LOG_COLORS", alloc),
+                        .from_envvar => |envvar| try ColorSchema.initEnvVar(envvar, alloc),
+                        .from_string => |str| try ColorSchema.initString(str, alloc),
+                    };
+                } else null;
+            } else null;
+
+            break :f Formatter{ .text = color_schema };
+        },
+        .json => unreachable, // TODO: implement
+    };
+    const log_handler = try alloc.create(LogHandler);
+    log_handler.* = LogHandler{
+        .output = output,
+        .formatter = frm,
+    };
+    return Logger.initRoot(options.root_logger_name, spec, log_handler, alloc);
+}
 
 test "main" {
-    const testing = @import("std").testing;
-    var spec = try LogLevelSpec.initFromDefaultEnvvar(testing.allocator);
-    defer spec.deinit();
-
-    const std = @import("std");
-    const LogHandler = @import("./LogHandler.zig");
-
-    var colorSchema = try formatter.ColorSchema.init(testing.allocator);
-    defer colorSchema.deinit();
-    var logHandler = LogHandler{
-        .output = std.io.getStdErr(),
-        .formatter = Formatter{ .text = .{ .auto = &colorSchema } },
-    };
-
-    var log = try Logger.initRoot(spec, &logHandler, testing.allocator);
+    var log = try initRootLogger(testing.allocator, .{
+        .color = .always,
+    });
     defer log.deinit();
 
     var log2 = try log.initChildLogger("kid1");

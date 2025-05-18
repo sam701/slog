@@ -13,6 +13,10 @@ output: Output,
 formatter: Formatter,
 mutex: std.Thread.Mutex = .{},
 
+pub fn deinit(self: *Self) void {
+    self.formatter.deinit();
+}
+
 pub fn handle(self: *Self, event: *const LogEvent) !void {
     self.mutex.lock();
     defer self.mutex.unlock();
