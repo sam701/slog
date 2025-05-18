@@ -74,4 +74,23 @@ pub fn build(b: *std.Build) void {
 
     const lldb_step = b.step("debug", "run the tests under lldb");
     lldb_step.dependOn(&lldb.step);
+
+    // Configure example
+    {
+        const example_mod = b.createModule(.{
+            .root_source_file = b.path("example/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        example_mod.addImport("slog", lib_mod);
+        const exe = b.addExecutable(.{
+            .name = "example",
+            .root_module = example_mod,
+        });
+        b.installArtifact(exe);
+        const run_cmd = b.addRunArtifact(exe);
+
+        const run_step = b.step("run-example", "Run the example");
+        run_step.dependOn(&run_cmd.step);
+    }
 }
