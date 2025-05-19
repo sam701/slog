@@ -105,18 +105,18 @@ test "main" {
 
     var log2 = try log.initChildLogger("kid1");
 
-    try log.info("info test", .{ .field1 = "value1", .name = "John", .age = 30 });
-    try log2.trace("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30 });
-    try log2.debug("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30 });
-    try log2.info("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30e2 });
-    try log2.warn("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30.34534 });
-    try log2.err("Hello, world!", .{ .field1 = "value1", .name = "John Smith", .age = 30, .active = true, .nothing = null });
+    log.info("info test", .{ .field1 = "value1", .name = "John", .age = 30 });
+    log2.trace("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30 });
+    log2.debug("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30 });
+    log2.info("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30e2 });
+    log2.warn("Hello, world!", .{ .field1 = "value1", .name = "John", .age = 30.34534 });
+    log2.err("Hello, world!", .{ .field1 = "value1", .name = "John Smith", .age = 30, .active = true, .nothing = null });
 
     var log3 = try log2.initChildLogger("kid1-1");
     var log4 = try log2.initChildLogger("kid1-2");
     try testing.expectEqual(2, log2.kids.items.len);
-    try log3.warn("abc", .{ .f1 = "v1" });
-    try log4.warn("abc", .{ .f1 = "v1" });
+    log3.warn("abc", .{ .f1 = "v1" });
+    log4.warn("abc", .{ .f1 = "v1" });
 
     log3.deinit();
     try testing.expectEqual(1, log2.kids.items.len);

@@ -106,24 +106,24 @@ fn removeKid(self: *Self, kid_ptr: *const Self) void {
     } else unreachable;
 }
 
-pub fn trace(self: *Self, message: []const u8, fields: anytype) !void {
-    return self.log(Level.trace, message, fields);
+pub fn trace(self: *Self, message: []const u8, fields: anytype) void {
+    return self.log(Level.trace, message, fields) catch return;
 }
 
-pub fn debug(self: *Self, message: []const u8, fields: anytype) !void {
-    return self.log(Level.debug, message, fields);
+pub fn debug(self: *Self, message: []const u8, fields: anytype) void {
+    return self.log(Level.debug, message, fields) catch return;
 }
 
-pub fn info(self: *Self, message: []const u8, fields: anytype) !void {
-    return self.log(Level.info, message, fields);
+pub fn info(self: *Self, message: []const u8, fields: anytype) void {
+    return self.log(Level.info, message, fields) catch return;
 }
 
-pub fn warn(self: *Self, message: []const u8, fields: anytype) !void {
-    return self.log(Level.warn, message, fields);
+pub fn warn(self: *Self, message: []const u8, fields: anytype) void {
+    return self.log(Level.warn, message, fields) catch return;
 }
 
-pub fn err(self: *Self, message: []const u8, fields: anytype) !void {
-    return self.log(Level.@"error", message, fields);
+pub fn err(self: *Self, message: []const u8, fields: anytype) void {
+    return self.log(Level.@"error", message, fields) catch return;
 }
 
 fn log(self: *Self, level: Level, message: []const u8, fields: anytype) !void {
