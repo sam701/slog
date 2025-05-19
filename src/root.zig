@@ -21,12 +21,40 @@ pub const SpecSource = union(enum) {
     from_string: []const u8,
 };
 
+/// Root logger options.
 pub const Options = struct {
+    /// Root logger name.
     root_logger_name: ?[]const u8 = null,
+
+    /// Defines where to get the log specification from. Default is to get it from environment variable ZIG_LOG.
+    ///
+    /// Format: LOG_LEVEL_DEFINITION(,LOG_LEVEL_DEFINITION)*
+    ///
+    /// * LOG_LEVEL_DEFINITION = NODE_NAME=LOG_LEVEL
+    /// * NODE_NAME = string(.string)*
+    /// * LOG_LEVEL = trace|debug|info|warn|error
+    ///
+    /// Example: info,child_logger=debug,child_logger.next=trace
     log_spec: SpecSource = SpecSource.from_default_envvar,
+
+    /// Some file to log into. Default: stderr.
     output: ?std.fs.File = null,
+
+    /// Log formatter
     formatter: enum { text, json } = .text,
+
+    /// When to use color if formatter is .text.
     color: enum { always, auto, never } = .auto,
+
+    /// Color schema for text formatter. If not set, no colors are used.
+    /// Default is to use spec source from environment variable ZIG_LOG_COLORS
+    ///
+    /// Format: COLOR_SPEC(,COLOR_SPEC)*
+    /// * COLOR_SPEC = COLOR_ITEM=COLOR_DEFINITION
+    /// * COLOR_ITEM = timestamp|message|logger|field_name|trace|debug|info|warn|error|null|bool|number|string
+    /// * COLOR_DEFINITION = terminal color sequence, like 31;1 or 38;5;243
+    ///
+    /// Example: trace=33;1,logger=32
     color_schema_spec: ?SpecSource = SpecSource.from_default_envvar,
 };
 
