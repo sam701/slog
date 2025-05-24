@@ -8,7 +8,7 @@ on:
     - cron: 0 4 * * *
 
 jobs:
-  validate_and_test_with_zig_master:
+  test_with_zig_master:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +18,17 @@ jobs:
       - run: zig fmt --check *.zig src/*.zig
       - run: zig build
       - run: zig build test
-  validate_and_test_windows:
+  test_with_zig_stable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.14.1
+      - run: zig fmt --check *.zig src/*.zig
+      - run: zig build
+      - run: zig build test
+  test_on_windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
