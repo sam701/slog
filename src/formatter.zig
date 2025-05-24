@@ -2,11 +2,12 @@ const std = @import("std");
 const File = std.fs.File;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
+const LogHandler = @import("./LogHandler.zig");
 const testing = std.testing;
 
 const zeit = @import("zeit");
 
-const Output = @import("./LogHandler.zig").Output;
+const Output = @import("./root.zig").Output;
 const LogEvent = @import("./util.zig").LogEvent;
 const Level = @import("./util.zig").Level;
 
@@ -199,9 +200,7 @@ pub const Formatter = union(enum) {
         }
     }
 
-    pub fn format(self: *Formatter, output: Output, event: *const LogEvent) !void {
-        var w = output.writer();
-
+    pub fn format(self: *Formatter, w: LogHandler.Writer, event: *const LogEvent) !void {
         var p = ColorPrinter{ .w = w, .color_schema = if (self.text) |txt| &txt else null };
 
         try p.writeItemColor(.timestamp);
@@ -256,7 +255,7 @@ pub const Formatter = union(enum) {
 };
 
 const ColorPrinter = struct {
-    w: std.fs.File.Writer,
+    w: LogHandler.Writer,
     color_schema: ?*const ColorSchema,
 
     const colorClear = "0";

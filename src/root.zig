@@ -1,5 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
+const builtin = @import("builtin");
 
 const formatter = @import("./formatter.zig");
 const Formatter = formatter.Formatter;
@@ -21,6 +22,8 @@ pub const SpecSource = union(enum) {
     from_string: []const u8,
 };
 
+pub const Output = if (builtin.is_test) std.ArrayList(u8) else std.fs.File;
+
 /// Root logger options.
 pub const Options = struct {
     /// Root logger name.
@@ -38,7 +41,7 @@ pub const Options = struct {
     log_spec: SpecSource = SpecSource.from_default_envvar,
 
     /// Some file to log into. Default: stderr.
-    output: ?std.fs.File = null,
+    output: ?Output = null,
 
     /// Log formatter
     formatter: enum { text, json } = .text,
@@ -66,13 +69,13 @@ pub fn initRootLogger(alloc: std.mem.Allocator, options: Options) !*Logger {
     };
     errdefer spec.deinit();
 
-    const output = options.output orelse std.io.getStdErr();
+    const output = options.output orelse if (builtin.is_test) Output.init(std.testing.allocator) else std.io.getStdErr();
     const frm = switch (options.formatter) {
         .text => f: {
             const use_color = switch (options.color) {
                 .always => true,
                 .never => false,
-                .auto => std.posix.isatty(output.handle),
+                .auto => if (builtin.is_test) false else std.posix.isatty(output.handle),
             };
 
             const color_schema = if (use_color) cs: {
