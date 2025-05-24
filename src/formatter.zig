@@ -2,14 +2,16 @@ const std = @import("std");
 const File = std.fs.File;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const LogHandler = @import("./LogHandler.zig");
 const testing = std.testing;
 
 const zeit = @import("zeit");
 
+const LogHandler = @import("./LogHandler.zig");
 const Output = @import("./root.zig").Output;
-const LogEvent = @import("./util.zig").LogEvent;
-const Level = @import("./util.zig").Level;
+const util = @import("./util.zig");
+const LogEvent = util.LogEvent;
+const Level = util.Level;
+const Field = util.Field;
 
 pub const ColorableItem = enum {
     timestamp,
@@ -190,84 +192,160 @@ test "color format 1" {
     try testing.expectEqualSlices(u8, sc.field_types.get(.string).?, "32;1");
 }
 
+const Writer = LogHandler.Writer;
+
 pub const Formatter = union(enum) {
     text: ?ColorSchema,
     json,
 
-    pub fn deinit(self: *Formatter) void {
-        if (self.text) |*cs| {
-            cs.deinit();
+    pub fn deinit(self: Formatter) void {
+        switch (self) {
+            .text => |*schema| {
+                // var x: ?ColorSchema = schema;
+                if (schema.*) |cs| {
+                    var x = cs;
+                    x.deinit();
+                }
+            },
+            .json => {},
         }
     }
 
-    pub fn format(self: *Formatter, w: LogHandler.Writer, event: *const LogEvent) !void {
-        var p = ColorPrinter{ .w = w, .color_schema = if (self.text) |txt| &txt else null };
+    pub fn format(self: *Formatter, w: Writer, event: *const LogEvent) !void {
+        switch (self.*) {
+            .text => |maybe_color_schema| {
+                var p = ColorPrinter{ .w = w, .color_schema = if (maybe_color_schema) |txt| &txt else null };
+                try p.formatText(event);
+            },
+            .json => {
+                const p = JsonPrinter{ .w = w };
+                try p.print(event);
+            },
+        }
+    }
+};
 
-        try p.writeItemColor(.timestamp);
+fn levelName(level: Level) []const u8 {
+    return switch (level) {
+        .trace => "TRC",
+        .debug => "DBG",
+        .info => "INF",
+        .warn => "WRN",
+        .@"error" => "ERR",
+    };
+}
+
+const JsonPrinter = struct {
+    w: Writer,
+
+    fn print(self: JsonPrinter, event: *const LogEvent) !void {
+        try self.w.writeByte('{');
+
+        try writeString(self.w, "timestamp");
+        try self.w.writeByte(':');
+        try self.w.writeByte('"');
+        try event.timestamp.time().gofmt(self.w, "2006-01-02T15:04:05.000");
+        try self.w.writeByte('"');
+
+        try writeField(self.w, &Field{ .name = "level", .value = std.json.Value{ .string = levelName(event.level) } });
+        try writeField(self.w, &Field{ .name = "logger", .value = std.json.Value{ .string = if (event.logger_name) |name| name else "root" } });
+        try writeField(self.w, &Field{ .name = "message", .value = std.json.Value{ .string = event.message } });
+
+        if (event.constant_fields) |cf| {
+            for (cf) |field| {
+                try writeField(self.w, &field);
+            }
+        }
+        for (event.fields) |field| {
+            try writeField(self.w, &field);
+        }
+
+        try self.w.writeByte('}');
+        try self.w.writeByte('\n');
+    }
+
+    fn writeField(w: Writer, field: *const Field) !void {
+        try w.writeByte(',');
+        try writeString(w, field.name);
+        try w.writeByte(':');
+        try std.json.stringify(field.value, .{}, w);
+    }
+
+    fn writeString(w: Writer, str: []const u8) !void {
+        try w.writeByte('"');
+        for (str) |char| {
+            switch (char) {
+                '\t' => try writeBackslashChar(w, 't'),
+                '\n' => try writeBackslashChar(w, 'n'),
+                '\r' => try writeBackslashChar(w, 'r'),
+                else => try w.writeByte(char),
+            }
+        }
+        try w.writeByte('"');
+    }
+    fn writeBackslashChar(w: Writer, char: u8) !void {
+        try w.writeByte('\\');
+        try w.writeByte(char);
+    }
+};
+
+const ColorPrinter = struct {
+    w: Writer,
+    color_schema: ?*const ColorSchema,
+
+    const colorClear = "0";
+
+    pub fn formatText(self: ColorPrinter, event: *const LogEvent) !void {
+        const w = self.w;
+
+        try self.writeItemColor(.timestamp);
         try event.timestamp.time().gofmt(w, "2006-01-02T15:04:05.000");
-        try p.reset();
+        try self.reset();
         try w.writeByte(' ');
 
-        try p.writeLogLevelColor(event.level);
+        try self.writeLogLevelColor(event.level);
         try w.writeAll(levelName(event.level));
-        try p.reset();
+        try self.reset();
         try w.writeByte(' ');
 
         if (event.logger_name) |lname| {
-            try p.writeItemColor(.logger_name);
+            try self.writeItemColor(.logger_name);
             try w.writeAll(lname);
-            try p.reset();
+            try self.reset();
             try w.writeByte(' ');
         }
 
-        try p.writeItemColor(.message);
+        try self.writeItemColor(.message);
         try w.writeAll(event.message);
-        try p.reset();
+        try self.reset();
         try w.writeByte(' ');
 
-        for (event.fields, 0..) |entry, ix| {
+        for (event.fields, 0..) |field, ix| {
             if (ix > 0) try w.writeByte(' ');
-            try p.writeItemColor(.field_name);
-            try w.print("{s}=", .{entry.name});
-            try p.reset();
-            const value_type: FieldValueType = switch (entry.value) {
+            try self.writeItemColor(.field_name);
+            try w.print("{s}=", .{field.name});
+            try self.reset();
+            const value_type: FieldValueType = switch (field.value) {
                 .null => .null,
                 .bool => .bool,
                 .integer, .float => .number,
                 else => .string,
             };
-            try p.writeFieldTypeColor(value_type);
-            try std.json.stringify(entry.value, .{}, w);
-            try p.reset();
+            try self.writeFieldTypeColor(value_type);
+            try std.json.stringify(field.value, .{}, w);
+            try self.reset();
         }
         try w.writeByte('\n');
     }
 
-    fn levelName(level: Level) []const u8 {
-        return switch (level) {
-            .trace => "TRC",
-            .debug => "DBG",
-            .info => "INF",
-            .warn => "WRN",
-            .@"error" => "ERR",
-        };
-    }
-};
-
-const ColorPrinter = struct {
-    w: LogHandler.Writer,
-    color_schema: ?*const ColorSchema,
-
-    const colorClear = "0";
-
-    fn writeItemColor(self: *ColorPrinter, color_item: ColorableItem) !void {
+    fn writeItemColor(self: *const ColorPrinter, color_item: ColorableItem) !void {
         if (self.color_schema) |schema| {
             if (schema.items.get(color_item)) |color| {
                 try self.writeColor(color);
             }
         }
     }
-    fn writeLogLevelColor(self: *ColorPrinter, level: Level) !void {
+    fn writeLogLevelColor(self: *const ColorPrinter, level: Level) !void {
         if (self.color_schema) |schema| {
             if (schema.log_levels.get(level)) |color| {
                 try self.writeColor(color);
@@ -275,7 +353,7 @@ const ColorPrinter = struct {
         }
     }
 
-    fn writeFieldTypeColor(self: *ColorPrinter, field_type: FieldValueType) !void {
+    fn writeFieldTypeColor(self: *const ColorPrinter, field_type: FieldValueType) !void {
         if (self.color_schema) |schema| {
             if (schema.field_types.get(field_type)) |color| {
                 try self.writeColor(color);
@@ -283,13 +361,13 @@ const ColorPrinter = struct {
         }
     }
 
-    fn writeColor(self: *ColorPrinter, color: []const u8) !void {
+    fn writeColor(self: *const ColorPrinter, color: []const u8) !void {
         try self.w.writeByte(0x1b);
         try self.w.writeByte('[');
         try self.w.writeAll(color);
         try self.w.writeByte('m');
     }
-    fn reset(self: *ColorPrinter) !void {
+    fn reset(self: *const ColorPrinter) !void {
         if (self.color_schema != null) try self.writeColor(colorClear);
     }
 };

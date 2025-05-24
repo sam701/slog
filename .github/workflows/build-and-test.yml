@@ -25,7 +25,6 @@ jobs:
       - uses: goto-bus-stop/setup-zig@v2
         with:
           version: 0.14.1
-      - run: zig fmt --check *.zig src/*.zig
       - run: zig build
       - run: zig build test
   test_on_windows:

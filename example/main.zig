@@ -16,4 +16,8 @@ pub fn main() !void {
     log3.warn("Hello slog!", .{ .field1 = "value1", .field2 = "value5", .rate = 30.34534 });
     log3.err("Hello slog!", .{ .field1 = "value1", .field2 = "value6", .rate = 30, .active = true, .metadata = null });
     log4.err("Hello slog!", .{ .field1 = "value1", .field2 = "value6", .rate = 30, .active = true, .metadata = null });
+
+    var jlog = try slog.initRootLogger(std.heap.page_allocator, .{ .formatter = .json });
+    jlog.info("Hello slog!", .{ .field1 = "value1", .field2 = "value1", .rate = 30 });
+    defer jlog.deinit();
 }
