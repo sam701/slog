@@ -226,21 +226,19 @@ pub const Formatter = union(enum) {
         try p.reset();
         try w.writeByte(' ');
 
-        var it = event.fields.iterator();
-        var cnt: usize = 0;
-        while (it.next()) |entry| : (cnt += 1) {
-            if (cnt > 0) try w.writeByte(' ');
+        for (event.fields, 0..) |entry, ix| {
+            if (ix > 0) try w.writeByte(' ');
             try p.writeItemColor(.field_name);
-            try w.print("{s}=", .{entry.key_ptr.*});
+            try w.print("{s}=", .{entry.name});
             try p.reset();
-            const value_type: FieldValueType = switch (entry.value_ptr.*) {
+            const value_type: FieldValueType = switch (entry.value) {
                 .null => .null,
                 .bool => .bool,
                 .integer, .float => .number,
                 else => .string,
             };
             try p.writeFieldTypeColor(value_type);
-            try std.json.stringify(entry.value_ptr.*, .{}, w);
+            try std.json.stringify(entry.value, .{}, w);
             try p.reset();
         }
         try w.writeByte('\n');

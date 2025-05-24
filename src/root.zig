@@ -87,7 +87,7 @@ pub fn initRootLogger(alloc: std.mem.Allocator, options: Options) !*Logger {
 
             break :f Formatter{ .text = color_schema };
         },
-        .json => unreachable, // TODO: implement
+        .json => Formatter.json,
     };
     const log_handler = try alloc.create(LogHandler);
     log_handler.* = LogHandler{
@@ -116,7 +116,7 @@ test "main" {
     var log4 = try log2.initChildLogger("kid1-2");
     try testing.expectEqual(2, log2.kids.items.len);
     log3.warn("abc", .{ .f1 = "v1" });
-    log4.warn("abc", .{ .f1 = "v1" });
+    log4.err("abc", .{ .f1 = "v1" });
 
     log3.deinit();
     try testing.expectEqual(1, log2.kids.items.len);

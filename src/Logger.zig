@@ -1,6 +1,5 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ObjectMap = std.json.ObjectMap;
 const Value = std.json.Value;
 
 const zeit = @import("zeit");
@@ -13,12 +12,13 @@ const Node = @import("./LogLevelSpecNode.zig");
 const util = @import("./util.zig");
 const Level = util.Level;
 const LogEvent = util.LogEvent;
+const Field = util.Field;
 
 const Self = @This();
 
 name: ?[]const u8,
 allocator: std.mem.Allocator,
-constant_fields: ?ObjectMap = null,
+constant_fields: ?[]Field = null,
 dispatcher: EventDispatcher,
 parent: ?*Self,
 kids: std.ArrayList(*Self),
@@ -51,7 +51,15 @@ pub fn deinit(self: *Self) void {
     for (self.kids.items) |kid| kid.deinit();
     self.kids.deinit();
 
-    if (self.constant_fields) |*fields| fields.deinit();
+    if (self.constant_fields) |fields| fields: {
+        if (self.parent) |parent| {
+            if (parent.constant_fields) |parent_fields| {
+                if (parent_fields.ptr == fields.ptr) break :fields;
+            }
+        }
+        self.deinitFields(fields, true);
+    }
+
     if (self.name) |name| self.allocator.free(name);
     if (self.parent) |parent| {
         parent.removeKid(self);
@@ -65,6 +73,19 @@ pub fn deinit(self: *Self) void {
         self.allocator.destroy(self.dispatcher.handler);
     }
     self.allocator.destroy(self);
+}
+
+fn deinitFields(self: *const Self, fields: []Field, free_values: bool) void {
+    for (fields) |f| {
+        if (free_values) {
+            self.allocator.free(f.name);
+            switch (f.value) {
+                .string => |str| self.allocator.free(str),
+                else => {},
+            }
+        }
+    }
+    self.allocator.free(fields);
 }
 
 pub fn initChildLogger(self: *Self, name: []const u8) !*Self {
@@ -83,7 +104,7 @@ pub fn initChildLogger(self: *Self, name: []const u8) !*Self {
     kid.* = Self{
         .name = lname,
         .allocator = self.allocator,
-        .constant_fields = if (self.constant_fields) |fields| try fields.clone() else null,
+        .constant_fields = self.constant_fields,
         .dispatcher = self.dispatcher.createChildDispatcher(name),
         .parent = self,
         .kids = std.ArrayList(*Self).init(self.allocator),
@@ -134,15 +155,15 @@ fn log(self: *Self, level: Level, message: []const u8, fields: anytype) !void {
         .level = level,
         .message = message,
         .constant_fields = self.constant_fields,
-        .fields = try self.toObjectMap(fields),
+        .fields = try self.toFieldList(fields),
     };
-    defer event.fields.deinit();
+    defer self.deinitFields(event.fields, false);
 
     try self.dispatcher.dispatch(&event);
 }
 
-fn toObjectMap(self: *const Self, fields: anytype) !ObjectMap {
-    var map = ObjectMap.init(self.allocator);
+fn toFieldList(self: *const Self, fields: anytype) ![]Field {
+    var field_list = std.ArrayList(Field).init(self.allocator);
 
     const FieldsType = @TypeOf(fields);
     const ti = @typeInfo(FieldsType);
@@ -169,8 +190,8 @@ fn toObjectMap(self: *const Self, fields: anytype) !ObjectMap {
                 @compileError(std.fmt.comptimePrint("unsupported type: {any}", .{field_type}));
             },
         };
-        try map.put(field.name, value);
+        try field_list.append(Field{ .name = field.name, .value = value });
     }
 
-    return map;
+    return field_list.toOwnedSlice();
 }

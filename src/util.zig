@@ -21,11 +21,16 @@ pub const Level = enum(u3) {
     }
 };
 
+pub const Field = struct {
+    name: []const u8,
+    value: std.json.Value,
+};
+
 pub const LogEvent = struct {
     timestamp: zeit.Instant,
     logger_name: ?[]const u8,
     level: Level,
     message: []const u8,
-    constant_fields: ?std.json.ObjectMap,
-    fields: std.json.ObjectMap,
+    constant_fields: ?[]const Field,
+    fields: []Field,
 };
