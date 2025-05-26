@@ -18,7 +18,7 @@ pub fn deinit(self: *Self) void {
     while (it.next()) |v| v.*.deinit();
 
     self.kids.deinit();
-    if (self.parent != null) self.allocator.free(self.name);
+    self.allocator.free(self.name);
     self.allocator.destroy(self);
 }
 

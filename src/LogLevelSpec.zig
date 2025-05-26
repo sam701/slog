@@ -24,7 +24,7 @@ pub fn initFromStringSpec(spec: []const u8, alloc: Allocator) !Self {
     var root = try alloc.create(Node);
     errdefer alloc.destroy(root);
     root.* = Node{
-        .name = "root",
+        .name = try alloc.dupe(u8, "root"),
         .parent = null,
         .configured_log_level = Level.info,
         .kids = std.StringHashMap(*Node).init(alloc),

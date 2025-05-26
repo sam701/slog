@@ -61,6 +61,7 @@ pub const Options = struct {
     color_schema_spec: ?SpecSource = SpecSource.from_default_envvar,
 };
 
+/// Returns a root logger.
 pub fn initRootLogger(alloc: std.mem.Allocator, options: Options) !*Logger {
     var spec = switch (options.log_spec) {
         .from_default_envvar => try LogLevelSpec.initFromEnvvar("ZIG_LOG", alloc),
@@ -157,3 +158,15 @@ const StringInspector = struct {
         try testing.expect(std.mem.indexOf(u8, self.str, pattern) == null);
     }
 };
+
+test "root logger level" {
+    var log = try initRootLogger(testing.allocator, .{
+        .root_logger_name = "abc",
+        .log_spec = SpecSource{ .from_string = "info,abc=debug,n1=trace" },
+    });
+    log.debug("abcd", .{});
+    defer log.deinit();
+
+    const si = StringInspector{ .str = log.dispatcher.handler.output.items };
+    try si.hasPattern("abcd");
+}

@@ -26,14 +26,27 @@ kids: std.ArrayList(*Self),
 timezone: *TimeZone,
 
 pub fn initRoot(name: ?[]const u8, spec: LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Self {
-    const node = spec.root;
+    var node = spec.root;
     const self = try alloc.create(Self);
 
     const tz = try alloc.create(TimeZone);
     tz.* = try zeit.local(alloc, null);
 
+    if (name) |root_name| {
+        if (spec.root.kids.get(root_name)) |kid| {
+            // If there is a kid with the same name as the root, promote it to the root.
+            kid.configured_log_level = kid.logLevel();
+            kid.parent = null;
+            node = kid;
+            _ = spec.root.kids.remove(root_name);
+
+            var s = spec;
+            s.deinit();
+        }
+    }
+
     self.* = .{
-        .name = name,
+        .name = if (name) |n| try alloc.dupe(u8, n) else null,
         .allocator = alloc,
         .dispatcher = EventDispatcher{
             .handler = handler,
