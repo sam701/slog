@@ -241,7 +241,7 @@ const JsonPrinter = struct {
     fn print(self: JsonPrinter, event: *const LogEvent) !void {
         try self.w.writeByte('{');
 
-        try writeString(self.w, "timestamp");
+        try writeFieldName(self.w, "timestamp");
         try self.w.writeByte(':');
         try self.w.writeByte('"');
         try event.timestamp.time().gofmt(self.w, "2006-01-02T15:04:05.000");
@@ -266,26 +266,14 @@ const JsonPrinter = struct {
 
     fn writeField(w: Writer, field: *const Field) !void {
         try w.writeByte(',');
-        try writeString(w, field.name);
+        // FIXME the field name can be one of already used: timestamp, level, message
+        try writeFieldName(w, field.name);
         try w.writeByte(':');
         try std.json.stringify(field.value, .{}, w);
     }
 
-    fn writeString(w: Writer, str: []const u8) !void {
-        try w.writeByte('"');
-        for (str) |char| {
-            switch (char) {
-                '\t' => try writeBackslashChar(w, 't'),
-                '\n' => try writeBackslashChar(w, 'n'),
-                '\r' => try writeBackslashChar(w, 'r'),
-                else => try w.writeByte(char),
-            }
-        }
-        try w.writeByte('"');
-    }
-    fn writeBackslashChar(w: Writer, char: u8) !void {
-        try w.writeByte('\\');
-        try w.writeByte(char);
+    fn writeFieldName(w: Writer, str: []const u8) !void {
+        try std.json.stringify(str, .{}, w);
     }
 };
 
