@@ -22,6 +22,7 @@ pub const SpecSource = union(enum) {
     from_string: []const u8,
 };
 
+/// Log output type.
 pub const Output = if (builtin.is_test) std.ArrayList(u8) else std.fs.File;
 
 /// Root logger options.

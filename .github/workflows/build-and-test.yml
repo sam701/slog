@@ -8,7 +8,7 @@ on:
     - cron: 0 4 * * *
 
 jobs:
-  test_with_zig_master:
+  test-with-zig-master:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +18,14 @@ jobs:
       - run: zig fmt --check *.zig src/*.zig
       - run: zig build
       - run: zig build test
-  test_with_zig_stable:
+      - run: zig build docs
+      - name: Upload artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'schedule'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./zig-out/docs/
+
+  test-with-zig-stable:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +34,7 @@ jobs:
           version: 0.14.1
       - run: zig build
       - run: zig build test
-  test_on_windows:
+  test-on-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,3 +43,18 @@ jobs:
           version: master
       - run: zig build
       - run: zig build test
+
+  deploy-pages:
+    runs-on: ubuntu-latest
+    needs: test-with-zig-master
+    if: github.ref == 'refs/heads/main' && github.event_name != 'schedule'
+    permissions:
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

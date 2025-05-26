@@ -1,4 +1,5 @@
 # Structured Logging for Zig
+[![Zig Docs](https://img.shields.io/badge/docs-zig-%23f7a41d)](https://sam701.github.io/slog)
 
 `slog` is a configurable, structured logging package for Zig with support for hierarchical loggers.
 ![img](./doc/log-output.png)
