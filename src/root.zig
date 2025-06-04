@@ -171,3 +171,15 @@ test "root logger level" {
     const si = StringInspector{ .str = log.dispatcher.handler.output.items };
     try si.hasPattern("abcd");
 }
+
+test "root logger level 2" {
+    var log = try initRootLogger(testing.allocator, .{
+        .root_logger_name = "abc",
+        .log_spec = SpecSource{ .from_string = "abc=debug,n1=trace" },
+    });
+    log.debug("abcd", .{});
+    defer log.deinit();
+
+    const si = StringInspector{ .str = log.dispatcher.handler.output.items };
+    try si.hasPattern("abcd");
+}
