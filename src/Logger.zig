@@ -190,7 +190,7 @@ fn toFieldList(self: *const Self, fields: anytype) ![]Field {
         const value: Value = val: switch (field_type) {
             .pointer => |pti| {
                 const cti = @typeInfo(pti.child);
-                if (cti == .array and cti.array.child == u8) {
+                if (pti.child == u8 or cti == .array and cti.array.child == u8) {
                     break :val Value{ .string = @field(fields, field.name) };
                 }
                 unreachable;
