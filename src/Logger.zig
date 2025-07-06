@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
+const testing = std.testing;
 
 const zeit = @import("zeit");
 const TimeZone = zeit.TimeZone;
@@ -168,15 +169,15 @@ fn log(self: *Self, level: Level, message: []const u8, fields: anytype) !void {
         .level = level,
         .message = message,
         .constant_fields = self.constant_fields,
-        .fields = try self.toFieldList(fields),
+        .fields = try toFieldList(fields, self.allocator),
     };
     defer self.deinitFields(event.fields, false);
 
     try self.dispatcher.dispatch(&event);
 }
 
-fn toFieldList(self: *const Self, fields: anytype) ![]Field {
-    var field_list = std.ArrayList(Field).init(self.allocator);
+fn toFieldList(fields: anytype, alloc: Allocator) ![]Field {
+    var field_list = std.ArrayList(Field).init(alloc);
 
     const FieldsType = @TypeOf(fields);
     const ti = @typeInfo(FieldsType);
@@ -187,18 +188,10 @@ fn toFieldList(self: *const Self, fields: anytype) ![]Field {
     const ff = ti.@"struct".fields;
     inline for (ff) |field| {
         const field_type = @typeInfo(field.type);
-        const value: Value = val: switch (field_type) {
-            .pointer => |pti| {
-                const cti = @typeInfo(pti.child);
-                if (pti.child == u8 or cti == .array and cti.array.child == u8) {
-                    break :val Value{ .string = @field(fields, field.name) };
-                }
-                unreachable;
-            },
-            .int, .comptime_int => Value{ .integer = @field(fields, field.name) },
-            .float, .comptime_float => Value{ .float = @field(fields, field.name) },
-            .bool => Value{ .bool = @field(fields, field.name) },
-            .null => Value.null,
+        const field_val = @field(fields, field.name);
+        const value: Value = switch (field_type) {
+            .pointer, .int, .comptime_int, .float, .comptime_float, .bool, .null => toPlainValue(field_val),
+            .optional => if (field_val == null) Value.null else toPlainValue(@field(fields, field.name).?),
             else => {
                 @compileError(std.fmt.comptimePrint("unsupported type: {any}", .{field_type}));
             },
@@ -207,4 +200,52 @@ fn toFieldList(self: *const Self, fields: anytype) ![]Field {
     }
 
     return field_list.toOwnedSlice();
+}
+
+fn toPlainValue(value: anytype) Value {
+    const field_type = @typeInfo(@TypeOf(value));
+    return val: switch (field_type) {
+        .pointer => |pti| {
+            const cti = @typeInfo(pti.child);
+            if (pti.child == u8 or cti == .array and cti.array.child == u8) {
+                break :val Value{ .string = value };
+            }
+            @compileError(std.fmt.comptimePrint("unsupported pointer type: {any}", .{field_type}));
+        },
+        .int, .comptime_int => Value{ .integer = @as(i64, value) },
+        .float, .comptime_float => Value{ .float = @as(f64, value) },
+        .bool => Value{ .bool = value },
+        .null => Value.null,
+        else => {
+            @compileError(std.fmt.comptimePrint("not a plain type: {any}", .{field_type}));
+        },
+    };
+}
+
+test "toField string" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const al = arena.allocator();
+
+    const x = try al.dupe(u8, "v2");
+    const result = try toFieldList(.{ .field1 = "v1", .field2 = x }, al);
+
+    try testing.expectEqual(2, result.len);
+    try testing.expectEqualStrings("field1", result[0].name);
+    try testing.expectEqualStrings("v1", result[0].value.string);
+    try testing.expectEqualStrings("v2", result[1].value.string);
+}
+
+test "toField optional" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const al = arena.allocator();
+
+    const v1: ?usize = null;
+    const v2: ?i64 = 34;
+    const result = try toFieldList(.{ .field1 = v1, .field2 = v2 }, al);
+
+    try testing.expectEqual(2, result.len);
+    try testing.expectEqual(std.json.Value.null, result[0].value);
+    try testing.expectEqual(34, result[1].value.integer);
 }
