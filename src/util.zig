@@ -23,7 +23,26 @@ pub const Level = enum(u3) {
 
 pub const Field = struct {
     name: []const u8,
-    value: std.json.Value,
+    value: Value,
+};
+
+pub const Value = union(enum) {
+    null,
+    bool: bool,
+    integer: i64,
+    float: f64,
+    string: []const u8,
+
+    pub fn write(self: Value, w: std.io.AnyWriter) !void {
+        switch (self) {
+            .null => try w.writeAll("null"),
+            .bool => |x| try std.fmt.format(w, "{}", .{x}),
+            .integer => |x| try std.fmt.format(w, "{}", .{x}),
+            .float => |x| try std.fmt.format(w, "{}", .{x}),
+            // .string => |x| try std.fmt.format(w, "\"{s}\"", .{x}),
+            .string => |x| try std.json.encodeJsonString(x, .{}, w),
+        }
+    }
 };
 
 pub const LogEvent = struct {

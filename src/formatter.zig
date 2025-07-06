@@ -7,11 +7,13 @@ const testing = std.testing;
 const zeit = @import("zeit");
 
 const LogHandler = @import("./LogHandler.zig");
+const Writer = LogHandler.Writer;
 const Output = @import("./root.zig").Output;
 const util = @import("./util.zig");
 const LogEvent = util.LogEvent;
 const Level = util.Level;
 const Field = util.Field;
+const Value = util.Value;
 
 pub const ColorableItem = enum {
     timestamp,
@@ -192,8 +194,6 @@ test "color format 1" {
     try testing.expectEqualSlices(u8, sc.field_types.get(.string).?, "32;1");
 }
 
-const Writer = LogHandler.Writer;
-
 pub const Formatter = union(enum) {
     text: ?ColorSchema,
     json,
@@ -247,9 +247,9 @@ const JsonPrinter = struct {
         try event.timestamp.time().gofmt(self.w, "2006-01-02T15:04:05.000");
         try self.w.writeByte('"');
 
-        try writeField(self.w, &Field{ .name = "level", .value = std.json.Value{ .string = levelName(event.level) } });
-        try writeField(self.w, &Field{ .name = "logger", .value = std.json.Value{ .string = if (event.logger_name) |name| name else "root" } });
-        try writeField(self.w, &Field{ .name = "message", .value = std.json.Value{ .string = event.message } });
+        try writeField(self.w, &Field{ .name = "level", .value = Value{ .string = levelName(event.level) } });
+        try writeField(self.w, &Field{ .name = "logger", .value = Value{ .string = if (event.logger_name) |name| name else "root" } });
+        try writeField(self.w, &Field{ .name = "message", .value = Value{ .string = event.message } });
 
         if (event.constant_fields) |cf| {
             for (cf) |field| {
@@ -266,10 +266,10 @@ const JsonPrinter = struct {
 
     fn writeField(w: Writer, field: *const Field) !void {
         try w.writeByte(',');
-        // FIXME the field name can be one of already used: timestamp, level, message
+        // FIXME: the field name can be one of already used: timestamp, level, message
         try writeFieldName(w, field.name);
         try w.writeByte(':');
-        try std.json.stringify(field.value, .{}, w);
+        try field.value.write(w.any());
     }
 
     fn writeFieldName(w: Writer, str: []const u8) !void {
@@ -320,7 +320,8 @@ const ColorPrinter = struct {
                 else => .string,
             };
             try self.writeFieldTypeColor(value_type);
-            try std.json.stringify(field.value, .{}, w);
+
+            try field.value.write(w.any());
             try self.reset();
         }
         try w.writeByte('\n');

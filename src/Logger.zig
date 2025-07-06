@@ -1,6 +1,5 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Value = std.json.Value;
 const testing = std.testing;
 
 const zeit = @import("zeit");
@@ -14,6 +13,7 @@ const util = @import("./util.zig");
 const Level = util.Level;
 const LogEvent = util.LogEvent;
 const Field = util.Field;
+const Value = util.Value;
 
 const Self = @This();
 
@@ -191,7 +191,7 @@ fn toFieldList(fields: anytype, alloc: Allocator) ![]Field {
         const field_val = @field(fields, field.name);
         const value: Value = switch (field_type) {
             .pointer, .int, .comptime_int, .float, .comptime_float, .bool, .null => toPlainValue(field_val),
-            .optional => if (field_val == null) Value.null else toPlainValue(@field(fields, field.name).?),
+            .optional => if (field_val) |val| toPlainValue(val) else Value.null,
             else => {
                 @compileError(std.fmt.comptimePrint("unsupported type: {any}", .{field_type}));
             },
@@ -246,6 +246,6 @@ test "toField optional" {
     const result = try toFieldList(.{ .field1 = v1, .field2 = v2 }, al);
 
     try testing.expectEqual(2, result.len);
-    try testing.expectEqual(std.json.Value.null, result[0].value);
+    try testing.expectEqual(Value.null, result[0].value);
     try testing.expectEqual(34, result[1].value.integer);
 }

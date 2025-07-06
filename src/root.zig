@@ -140,11 +140,11 @@ test "text logger" {
 
 test "json logger" {
     var log = try initRootLogger(testing.allocator, .{ .formatter = .json });
-    log.info("Hello slog!", .{ .field1 = "value1", .field2 = "value1", .rate = 30 });
+    log.info("Hello\tslog!", .{ .field1 = "value1", .field2 = "value1", .rate = 30 });
     defer log.deinit();
 
     const si = StringInspector{ .str = log.dispatcher.handler.output.items };
-    try si.hasPattern("message\":\"Hello");
+    try si.hasPattern("message\":\"Hello\\t");
     try si.hasPattern("field1\":\"value1\"");
 }
 
