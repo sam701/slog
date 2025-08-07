@@ -7,15 +7,16 @@ on:
     branches:
       - main
 
-env:
-  ZIG_VERSION: 0.14.1
-
 jobs:
   build-docs:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v4
+      - name: Load configuration
+        run: |
+          source .github/config.env
+          echo "ZIG_VERSION=${ZIG_VERSION}" >> $GITHUB_ENV
       - uses: goto-bus-stop/setup-zig@v2
         with:
           version: ${{ env.ZIG_VERSION }}
