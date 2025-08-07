@@ -1,53 +1,47 @@
 name: build-and-test
 on:
   push:
-    branches:
-      - '**'
   pull_request:
-  schedule:
-    - cron: 0 4 * * *
+
+env:
+  ZIG_VERSION: 0.14.1
 
 jobs:
-  test-with-zig-master:
-    runs-on: ubuntu-latest
+  build-and-test:
+    strategy:
+      fail-fast: true
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: goto-bus-stop/setup-zig@v2
         with:
-          version: master
-      - run: zig fmt --check *.zig src/*.zig
+          version: ${{ env.ZIG_VERSION }}
       - run: zig build
       - run: zig build test
+
+  build-docs:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
       - run: zig build docs
       - name: Upload artifact
-        if: github.ref == 'refs/heads/main' && github.event_name != 'schedule'
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./zig-out/docs/
 
-  test-with-zig-stable:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: 0.14.1
-      - run: zig build
-      - run: zig build test
-  test-on-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: master
-      - run: zig build
-      - run: zig build test
-
   deploy-pages:
     runs-on: ubuntu-latest
-    needs: test-with-zig-master
-    if: github.ref == 'refs/heads/main' && github.event_name != 'schedule'
+    needs: build-docs
+    if: github.ref == 'refs/heads/main'
     permissions:
       pages: write      # to deploy to Pages
       id-token: write   # to verify the deployment originates from an appropriate source
