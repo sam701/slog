@@ -15,6 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Load configuration
+        shell: bash
         run: |
           source .github/config.env
           echo "ZIG_VERSION=${ZIG_VERSION}" >> $GITHUB_ENV
