@@ -67,17 +67,17 @@ const ParseChunkResult = struct {
     rest: []const u8,
 };
 
-fn parseChunk(text: []const u8, allocator: Allocator) !?ParseChunkResult {
+fn parseChunk(text: []const u8, alloc: Allocator) !?ParseChunkResult {
     if (text.len == 0) return null;
 
-    var path_ar = std.ArrayList([]const u8).init(allocator);
+    var path_ar = std.ArrayList([]const u8).empty;
 
     var start: usize = 0;
     var ix: usize = 0;
     while (ix < text.len) : (ix += 1) {
         switch (text[ix]) {
             '.', '=' => {
-                try path_ar.append(text[start..ix]);
+                try path_ar.append(alloc, text[start..ix]);
                 start = ix + 1;
             },
             ',' => {
@@ -94,7 +94,7 @@ fn parseChunk(text: []const u8, allocator: Allocator) !?ParseChunkResult {
         .rest = text[@min(ix + 1, text.len)..],
     };
     if (path_ar.items.len > 0)
-        result.chunk.path = try path_ar.toOwnedSlice();
+        result.chunk.path = try path_ar.toOwnedSlice(alloc);
     return result;
 }
 

@@ -33,14 +33,14 @@ pub const Value = union(enum) {
     float: f64,
     string: []const u8,
 
-    pub fn write(self: Value, w: std.io.AnyWriter) !void {
+    pub fn write(self: Value, w: *std.Io.Writer) !void {
         switch (self) {
             .null => try w.writeAll("null"),
-            .bool => |x| try std.fmt.format(w, "{}", .{x}),
-            .integer => |x| try std.fmt.format(w, "{}", .{x}),
-            .float => |x| try std.fmt.format(w, "{}", .{x}),
+            .bool => |x| try w.print("{}", .{x}),
+            .integer => |x| try w.print("{d}", .{x}),
+            .float => |x| try w.print("{d:.10}", .{x}),
             // .string => |x| try std.fmt.format(w, "\"{s}\"", .{x}),
-            .string => |x| try std.json.encodeJsonString(x, .{}, w),
+            .string => |x| try std.json.Stringify.encodeJsonString(x, .{}, w),
         }
     }
 };

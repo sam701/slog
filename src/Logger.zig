@@ -55,7 +55,7 @@ pub fn initRoot(name: ?[]const u8, spec: LogLevelSpec, handler: *LogHandler, all
             .log_level = node.logLevel(),
         },
         .parent = null,
-        .kids = std.ArrayList(*Self).init(alloc),
+        .kids = std.ArrayList(*Self).empty,
         .timezone = tz,
     };
     return self;
@@ -63,7 +63,7 @@ pub fn initRoot(name: ?[]const u8, spec: LogLevelSpec, handler: *LogHandler, all
 
 pub fn deinit(self: *Self) void {
     for (self.kids.items) |kid| kid.deinit();
-    self.kids.deinit();
+    self.kids.deinit(self.allocator);
 
     if (self.constant_fields) |fields| fields: {
         if (self.parent) |parent| {
@@ -121,10 +121,10 @@ pub fn initChildLogger(self: *Self, name: []const u8) !*Self {
         .constant_fields = self.constant_fields,
         .dispatcher = self.dispatcher.createChildDispatcher(name),
         .parent = self,
-        .kids = std.ArrayList(*Self).init(self.allocator),
+        .kids = std.ArrayList(*Self).empty,
         .timezone = self.timezone,
     };
-    try self.kids.append(kid);
+    try self.kids.append(self.allocator, kid);
     return kid;
 }
 
@@ -177,7 +177,7 @@ fn log(self: *Self, level: Level, message: []const u8, fields: anytype) !void {
 }
 
 fn toFieldList(fields: anytype, alloc: Allocator) ![]Field {
-    var field_list = std.ArrayList(Field).init(alloc);
+    var field_list = std.ArrayList(Field).empty;
 
     const FieldsType = @TypeOf(fields);
     const ti = @typeInfo(FieldsType);
@@ -196,10 +196,10 @@ fn toFieldList(fields: anytype, alloc: Allocator) ![]Field {
                 @compileError(std.fmt.comptimePrint("unsupported type: {any}", .{field_type}));
             },
         };
-        try field_list.append(Field{ .name = field.name, .value = value });
+        try field_list.append(alloc, Field{ .name = field.name, .value = value });
     }
 
-    return field_list.toOwnedSlice();
+    return field_list.toOwnedSlice(alloc);
 }
 
 fn toPlainValue(value: anytype) Value {

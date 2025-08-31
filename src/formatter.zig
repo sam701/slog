@@ -7,7 +7,7 @@ const testing = std.testing;
 const zeit = @import("zeit");
 
 const LogHandler = @import("./LogHandler.zig");
-const Writer = LogHandler.Writer;
+const Writer = std.Io.Writer;
 const Output = @import("./root.zig").Output;
 const util = @import("./util.zig");
 const LogEvent = util.LogEvent;
@@ -211,7 +211,7 @@ pub const Formatter = union(enum) {
         }
     }
 
-    pub fn format(self: *Formatter, w: Writer, event: *const LogEvent) !void {
+    pub fn format(self: *Formatter, w: *Writer, event: *const LogEvent) !void {
         switch (self.*) {
             .text => |maybe_color_schema| {
                 var p = ColorPrinter{ .w = w, .color_schema = if (maybe_color_schema) |txt| &txt else null };
@@ -236,7 +236,7 @@ fn levelName(level: Level) []const u8 {
 }
 
 const JsonPrinter = struct {
-    w: Writer,
+    w: *Writer,
 
     fn print(self: JsonPrinter, event: *const LogEvent) !void {
         try self.w.writeByte('{');
@@ -264,21 +264,21 @@ const JsonPrinter = struct {
         try self.w.writeByte('\n');
     }
 
-    fn writeField(w: Writer, field: *const Field) !void {
+    fn writeField(w: *Writer, field: *const Field) !void {
         try w.writeByte(',');
         // FIXME: the field name can be one of already used: timestamp, level, message
         try writeFieldName(w, field.name);
         try w.writeByte(':');
-        try field.value.write(w.any());
+        try field.value.write(w);
     }
 
-    fn writeFieldName(w: Writer, str: []const u8) !void {
-        try std.json.stringify(str, .{}, w);
+    fn writeFieldName(w: *Writer, str: []const u8) !void {
+        try std.json.Stringify.encodeJsonString(str, .{}, w);
     }
 };
 
 const ColorPrinter = struct {
-    w: Writer,
+    w: *Writer,
     color_schema: ?*const ColorSchema,
 
     const colorClear = "0";
@@ -321,7 +321,7 @@ const ColorPrinter = struct {
             };
             try self.writeFieldTypeColor(value_type);
 
-            try field.value.write(w.any());
+            try field.value.write(w);
             try self.reset();
         }
         try w.writeByte('\n');

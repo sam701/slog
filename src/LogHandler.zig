@@ -7,7 +7,6 @@ const util = @import("./util.zig");
 const Level = util.Level;
 const LogEvent = util.LogEvent;
 
-pub const Writer = std.io.BufferedWriter(4096, Output.Writer).Writer;
 const Self = @This();
 
 output: Output,
@@ -24,7 +23,17 @@ pub fn deinit(self: *Self) void {
 pub fn handle(self: *Self, event: *const LogEvent) !void {
     self.mutex.lock();
     defer self.mutex.unlock();
-    var bw = std.io.bufferedWriter(self.output.writer());
-    try self.formatter.format(bw.writer(), event);
-    try bw.flush();
+
+    var buf: [4096]u8 = undefined;
+    switch (self.output) {
+        .file => |f| {
+            var w = f.writer(&buf);
+            try self.formatter.format(&w.interface, event);
+            try w.interface.flush();
+        },
+        .writer => |w| {
+            try self.formatter.format(w, event);
+            try w.flush();
+        },
+    }
 }

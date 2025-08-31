@@ -23,7 +23,11 @@ pub const SpecSource = union(enum) {
 };
 
 /// Log output type.
-pub const Output = if (builtin.is_test) std.ArrayList(u8) else std.fs.File;
+pub const Output = union(enum) {
+    file: std.fs.File,
+    writer: *std.Io.Writer,
+};
+// pub const Output = if (builtin.is_test) std.Io.Writer.Allocating else std.fs.File;
 
 /// Root logger options.
 pub const Options = struct {
@@ -71,13 +75,16 @@ pub fn initRootLogger(alloc: std.mem.Allocator, options: Options) !*Logger {
     };
     errdefer spec.deinit();
 
-    const output = options.output orelse if (builtin.is_test) Output.init(std.testing.allocator) else std.io.getStdErr();
+    const output = options.output orelse Output{ .file = std.fs.File.stderr() };
     const frm = switch (options.formatter) {
         .text => f: {
             const use_color = switch (options.color) {
                 .always => true,
                 .never => false,
-                .auto => if (builtin.is_test) false else std.posix.isatty(output.handle),
+                .auto => switch (output) {
+                    .file => |f| std.posix.isatty(f.handle),
+                    .writer => false,
+                },
             };
 
             const color_schema = if (use_color) cs: {

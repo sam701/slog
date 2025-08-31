@@ -37,8 +37,8 @@
     // internet connectivity.
     .dependencies = .{
         .zeit = .{
-            .url = "git+https://github.com/rockorager/zeit.git#4496d1c40b2223c22a1341e175fc2ecd94cc0de9",
-            .hash = "zeit-0.6.0-5I6bk1J1AgA13rteb6E0steXiOUKBYTzJZMMIuK9oEmb",
+            .url = "git+https://github.com/rockorager/zeit.git?ref=zig-0.15#ed2ca60db118414bda2b12df2039e33bad3b0b88",
+            .hash = "zeit-0.6.0-5I6bk0J9AgCVa0nnyL0lNY9Xa9F68hHq-ZarhuXNV-Jb",
         },
     },
     .paths = .{
