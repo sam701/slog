@@ -1,5 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
+const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 
 const formatter = @import("./formatter.zig");
@@ -110,15 +111,15 @@ pub fn initRootLogger(alloc: std.mem.Allocator, options: Options) !*Logger {
 }
 
 test "text logger" {
-    var log = try initRootLogger(testing.allocator, .{
+    var tl = try TestingLogger.init(.{
         .log_spec = SpecSource{ .from_string = "warn" },
         .color = .always,
     });
-    defer log.deinit();
+    defer tl.deinit();
 
-    var log2 = try log.initChildLogger("kid1");
+    var log2 = try tl.logger.initChildLogger("kid1");
 
-    log.info("info test aa11", .{ .field1 = "value1", .name = "John", .age = 30 });
+    tl.logger.info("info test aa11", .{ .field1 = "value1", .name = "John", .age = 30 });
     log2.trace("Hello, aa22", .{ .field1 = "value1", .name = "John", .age = 30 });
     log2.debug("Hello, aa33", .{ .field1 = "value1", .name = "John", .age = 30 });
     log2.info("Hello, aa44", .{ .field1 = "value1", .name = "John", .age = 30e2 });
@@ -134,59 +135,75 @@ test "text logger" {
     log3.deinit();
     try testing.expectEqual(1, log2.kids.items.len);
 
-    const si = StringInspector{ .str = log.dispatcher.handler.output.items };
-    try si.hasNotPattern("aa11");
-    try si.hasNotPattern("aa22");
-    try si.hasNotPattern("aa33");
-    try si.hasNotPattern("aa44");
-    try si.hasPattern("aa55");
-    try si.hasPattern("aa66");
-    try si.hasPattern("abc77");
-    try si.hasPattern("abc88");
+    try tl.hasNotPattern("aa11");
+    try tl.hasNotPattern("aa22");
+    try tl.hasNotPattern("aa33");
+    try tl.hasNotPattern("aa44");
+    try tl.hasPattern("aa55");
+    try tl.hasPattern("aa66");
+    try tl.hasPattern("abc77");
+    try tl.hasPattern("abc88");
 }
 
 test "json logger" {
-    var log = try initRootLogger(testing.allocator, .{ .formatter = .json });
-    log.info("Hello\tslog!", .{ .field1 = "value1", .field2 = "value1", .rate = 30 });
-    defer log.deinit();
+    var tl = try TestingLogger.init(.{ .formatter = .json });
+    tl.logger.info("Hello\tslog!", .{ .field1 = "value1", .field2 = "value1", .rate = 30 });
+    defer tl.deinit();
 
-    const si = StringInspector{ .str = log.dispatcher.handler.output.items };
-    try si.hasPattern("message\":\"Hello\\t");
-    try si.hasPattern("field1\":\"value1\"");
+    try tl.hasPattern("message\":\"Hello\\t");
+    try tl.hasPattern("field1\":\"value1\"");
 }
 
-const StringInspector = struct {
-    str: []const u8,
+const TestingLogger = struct {
+    allocating: *Writer.Allocating,
+    logger: *Logger,
 
-    fn hasPattern(self: StringInspector, pattern: []const u8) !void {
-        try testing.expect(std.mem.indexOf(u8, self.str, pattern).? > 0);
+    fn init(options: Options) !TestingLogger {
+        var al = try testing.allocator.create(Writer.Allocating);
+        al.* = Writer.Allocating.init(testing.allocator);
+
+        var opt = options;
+        opt.output = .{ .writer = &al.writer };
+        return .{
+            .allocating = al,
+            .logger = try initRootLogger(testing.allocator, opt),
+        };
     }
 
-    fn hasNotPattern(self: StringInspector, pattern: []const u8) !void {
-        try testing.expect(std.mem.indexOf(u8, self.str, pattern) == null);
+    pub fn deinit(self: *TestingLogger) void {
+        const al = self.allocating.allocator;
+        self.allocating.deinit();
+        self.logger.deinit();
+        al.destroy(self.allocating);
+    }
+
+    fn hasPattern(self: TestingLogger, pattern: []const u8) !void {
+        try testing.expect(std.mem.indexOf(u8, self.allocating.written(), pattern).? > 0);
+    }
+
+    fn hasNotPattern(self: TestingLogger, pattern: []const u8) !void {
+        try testing.expect(std.mem.indexOf(u8, self.allocating.written(), pattern) == null);
     }
 };
 
 test "root logger level" {
-    var log = try initRootLogger(testing.allocator, .{
+    var tl = try TestingLogger.init(.{
         .root_logger_name = "abc",
         .log_spec = SpecSource{ .from_string = "info,abc=debug,n1=trace" },
     });
-    log.debug("abcd", .{});
-    defer log.deinit();
+    defer tl.deinit();
+    tl.logger.debug("abcd", .{});
 
-    const si = StringInspector{ .str = log.dispatcher.handler.output.items };
-    try si.hasPattern("abcd");
+    try tl.hasPattern("abcd");
 }
 
 test "root logger level 2" {
-    var log = try initRootLogger(testing.allocator, .{
+    var tl = try TestingLogger.init(.{
         .root_logger_name = "abc",
         .log_spec = SpecSource{ .from_string = "abc=debug,n1=trace" },
     });
-    log.debug("abcd", .{});
-    defer log.deinit();
+    defer tl.deinit();
+    tl.logger.debug("abcd", .{});
 
-    const si = StringInspector{ .str = log.dispatcher.handler.output.items };
-    try si.hasPattern("abcd");
+    try tl.hasPattern("abcd");
 }

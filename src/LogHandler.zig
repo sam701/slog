@@ -15,9 +15,6 @@ mutex: std.Thread.Mutex = .{},
 
 pub fn deinit(self: *Self) void {
     self.formatter.deinit();
-    if (builtin.is_test) {
-        self.output.deinit();
-    }
 }
 
 pub fn handle(self: *Self, event: *const LogEvent) !void {
