@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const testing = std.testing;
 
-const Node = @import("./LogLevelSpecNode.zig");
+pub const Node = @import("./LogLevelSpecNode.zig");
 const Level = @import("./util.zig").Level;
 
 // const Logger = @import("Logger.zig");

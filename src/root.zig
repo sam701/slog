@@ -107,7 +107,7 @@ pub fn initRootLogger(alloc: std.mem.Allocator, options: Options) !*Logger {
         .output = output,
         .formatter = frm,
     };
-    return Logger.initRoot(options.root_logger_name, spec, log_handler, alloc);
+    return Logger.init(options.root_logger_name, spec, log_handler, alloc);
 }
 
 test "text logger" {
@@ -178,7 +178,7 @@ const TestingLogger = struct {
     }
 
     fn hasPattern(self: TestingLogger, pattern: []const u8) !void {
-        try testing.expect(std.mem.indexOf(u8, self.allocating.written(), pattern).? > 0);
+        try testing.expect(std.mem.indexOf(u8, self.allocating.written(), pattern).? >= 0);
     }
 
     fn hasNotPattern(self: TestingLogger, pattern: []const u8) !void {
@@ -186,7 +186,7 @@ const TestingLogger = struct {
     }
 };
 
-test "root logger level" {
+test "root logger level abc" {
     var tl = try TestingLogger.init(.{
         .root_logger_name = "abc",
         .log_spec = SpecSource{ .from_string = "info,abc=debug,n1=trace" },
@@ -206,4 +206,53 @@ test "root logger level 2" {
     tl.logger.debug("abcd", .{});
 
     try tl.hasPattern("abcd");
+}
+
+test "logger with dots in name" {
+    var tl = try TestingLogger.init(.{
+        .root_logger_name = "ab.cd.ef",
+        .log_spec = SpecSource{ .from_string = "error,ab=info" },
+    });
+    defer tl.deinit();
+    tl.logger.info("text1", .{});
+    tl.logger.debug("text2", .{});
+
+    try tl.hasPattern("text1");
+    try tl.hasNotPattern("text2");
+}
+
+test "logger with dots in name: deep spec" {
+    var tl = try TestingLogger.init(.{
+        .root_logger_name = "ab.cd.ef",
+        .log_spec = SpecSource{ .from_string = "error,ab.cd=debug,ab.cd.ef.gh=warn" },
+    });
+    defer tl.deinit();
+    tl.logger.info("text1", .{});
+    tl.logger.debug("text2", .{});
+
+    try tl.hasPattern("text1");
+    try tl.hasPattern("text2");
+
+    var log2 = try tl.logger.initChildLogger("gh");
+    log2.info("text3", .{});
+    try tl.hasNotPattern("text3");
+}
+
+test "logger with dots in name: child logger" {
+    var tl = try TestingLogger.init(.{
+        .log_spec = SpecSource{ .from_string = "error,ab.cd=info,ab.cd.ef=debug" },
+    });
+    defer tl.deinit();
+
+    var log2 = try tl.logger.initChildLogger("ab.cd");
+    log2.info("text1", .{});
+    log2.debug("text2", .{});
+    try tl.hasPattern("text1");
+    try tl.hasNotPattern("text2");
+
+    var log3 = try log2.initChildLogger("ef");
+    log3.info("text3", .{});
+    log3.debug("text4", .{});
+    try tl.hasPattern("text3");
+    try tl.hasPattern("text4");
 }

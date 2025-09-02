@@ -26,23 +26,24 @@ kids: std.ArrayList(*Self),
 
 timezone: *TimeZone,
 
-pub fn initRoot(name: ?[]const u8, spec: LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Self {
-    var node = spec.root;
+pub fn init(name: ?[]const u8, spec: LogLevelSpec, handler: *LogHandler, alloc: Allocator) !*Self {
+    var spec_node = spec.root;
     const self = try alloc.create(Self);
 
     const tz = try alloc.create(TimeZone);
     tz.* = try zeit.local(alloc, null);
 
     if (name) |root_name| {
-        if (spec.root.kids.get(root_name)) |kid| {
-            // If there is a kid with the same name as the root, promote it to the root.
-            kid.configured_log_level = kid.logLevel();
-            kid.parent = null;
-            node = kid;
-            _ = spec.root.kids.remove(root_name);
-
-            var s = spec;
-            s.deinit();
+        var name_chunk_it = std.mem.splitScalar(u8, root_name, '.');
+        while (name_chunk_it.next()) |sub_node_name| {
+            if (spec_node.kids.get(sub_node_name)) |kid| {
+                // This kid has the same name as the root -> promote it to the root.
+                kid.configured_log_level = kid.logLevel();
+                kid.parent = null;
+                _ = spec_node.kids.remove(sub_node_name);
+                spec_node.deinit();
+                spec_node = kid;
+            } else break;
         }
     }
 
@@ -51,8 +52,8 @@ pub fn initRoot(name: ?[]const u8, spec: LogLevelSpec, handler: *LogHandler, all
         .allocator = alloc,
         .dispatcher = EventDispatcher{
             .handler = handler,
-            .spec = node,
-            .log_level = node.logLevel(),
+            .spec = spec_node,
+            .log_level = spec_node.logLevel(),
         },
         .parent = null,
         .kids = std.ArrayList(*Self).empty,
